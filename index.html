@@ -77,63 +77,103 @@
     </header>
 
     <main class="app-main">
-      <!-- Hero: challenge progress -->
-      <section class="hero card">
-        <div class="hero-top">
-          <div>
-            <div class="eyebrow">Challenge</div>
-            <div class="hero-day"><span id="hero-day-num">0</span><span class="hero-day-of">/<span id="hero-day-total">30</span></span></div>
-            <div class="muted" id="hero-dates"></div>
-          </div>
-          <div class="hero-stats">
-            <div class="stat">
-              <div class="stat-num" id="stat-points">0</div>
-              <div class="stat-label">Points</div>
-            </div>
-            <div class="stat">
-              <div class="stat-num"><span id="stat-streak">0</span></div>
-              <div class="stat-label">Day streak</div>
-            </div>
-            <div class="stat">
-              <div class="stat-num">#<span id="stat-rank">–</span></div>
-              <div class="stat-label">Rank</div>
-            </div>
-          </div>
-        </div>
-        <div class="progress">
-          <div class="progress-bar" id="progress-bar"></div>
-        </div>
-      </section>
+      <div class="bento">
 
-      <!-- Today's check-in -->
-      <section class="card">
-        <div class="row">
-          <h2 id="checkin-title">Today's check-in</h2>
-          <div class="muted" id="checkin-date"></div>
-        </div>
-        <div id="checkin-out-of-window" class="muted hidden"></div>
-        <div id="checkin-list"></div>
-        <div class="checkin-footer">
-          <div class="checkin-summary">
-            <span id="checkin-points">0</span><span class="muted"> / <span id="checkin-max">18</span> pts today</span>
+        <!-- Hero: today's points ring -->
+        <section class="card bento-ring" data-accent="orange">
+          <div class="card-head">
+            <span class="eyebrow">Today</span>
+            <span class="muted small" id="ring-date"></span>
           </div>
-          <button id="save-entry" type="button" class="btn-primary">Save check-in</button>
-        </div>
-        <p id="entry-status" class="muted"></p>
-      </section>
+          <div class="ring-wrap">
+            <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+              <defs>
+                <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#ff5b3a"/>
+                  <stop offset="55%" stop-color="#ff2d6f"/>
+                  <stop offset="100%" stop-color="#ffb247"/>
+                </linearGradient>
+                <filter id="ring-glow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <circle class="ring-track" cx="100" cy="100" r="84"/>
+              <circle class="ring-fill" id="ring-fill" cx="100" cy="100" r="84"
+                transform="rotate(-90 100 100)" filter="url(#ring-glow)"/>
+            </svg>
+            <div class="ring-text">
+              <div class="ring-num" id="ring-num">0</div>
+              <div class="ring-unit">/ <span id="ring-max">18</span> pts</div>
+              <div class="ring-tag" id="ring-tag">tap to check in</div>
+            </div>
+          </div>
+          <div class="ring-foot">
+            <span id="ring-state" class="muted small"></span>
+          </div>
+        </section>
 
-      <!-- Leaderboard -->
-      <section class="card">
-        <h2>Leaderboard</h2>
-        <ul id="leaderboard" class="leaderboard"></ul>
-        <p id="leaderboard-empty" class="muted hidden">No check-ins yet. Be first.</p>
-      </section>
+        <!-- Stat: Day X / 30 -->
+        <section class="card bento-stat" data-accent="cyan">
+          <div class="stat-eyebrow">Challenge</div>
+          <div class="stat-big"><span id="stat-day">0</span><span class="stat-of">/<span id="stat-day-total">30</span></span></div>
+          <div class="stat-sub" id="stat-day-sub">—</div>
+          <div class="bar"><div class="bar-fill" id="day-progress"></div></div>
+        </section>
 
-      <!-- Last 7 days strip -->
-      <section class="card">
-        <h2>Your last 7 days</h2>
-        <div id="week-strip" class="week-strip"></div>
-      </section>
+        <!-- Stat: streak -->
+        <section class="card bento-stat" data-accent="yellow">
+          <div class="stat-eyebrow">Streak</div>
+          <div class="stat-big"><span id="stat-streak">0</span><span class="stat-of">d</span></div>
+          <div class="stat-sub">consecutive days</div>
+          <div class="dots" id="streak-dots"></div>
+        </section>
+
+        <!-- Stat: rank -->
+        <section class="card bento-stat" data-accent="pink">
+          <div class="stat-eyebrow">Rank</div>
+          <div class="stat-big">#<span id="stat-rank">–</span></div>
+          <div class="stat-sub" id="stat-rank-sub">—</div>
+        </section>
+
+        <!-- Stat: total points -->
+        <section class="card bento-stat" data-accent="green">
+          <div class="stat-eyebrow">Total</div>
+          <div class="stat-big"><span id="stat-points">0</span></div>
+          <div class="stat-sub" id="stat-points-sub">points this challenge</div>
+        </section>
+
+        <!-- Today's check-in -->
+        <section class="card bento-checkin" data-accent="orange">
+          <div class="card-head">
+            <h2>Today's check-in</h2>
+            <button id="save-entry" type="button" class="btn-pill">Save</button>
+          </div>
+          <div id="checkin-out-of-window" class="muted hidden"></div>
+          <div id="checkin-list"></div>
+          <p id="entry-status" class="muted entry-status"></p>
+        </section>
+
+        <!-- Leaderboard -->
+        <section class="card bento-leaderboard" data-accent="cyan">
+          <div class="card-head">
+            <h2>Leaderboard</h2>
+            <span class="muted small" id="leaderboard-meta"></span>
+          </div>
+          <ul id="leaderboard" class="leaderboard"></ul>
+          <p id="leaderboard-empty" class="muted hidden">No check-ins yet. Be first.</p>
+        </section>
+
+        <!-- Week strip -->
+        <section class="card bento-week" data-accent="green">
+          <div class="card-head">
+            <h2>Last 7 days</h2>
+            <span class="muted small">Daily points</span>
+          </div>
+          <div id="week-strip" class="week-strip"></div>
+        </section>
+
+      </div>
     </main>
 
     <footer class="app-footer">

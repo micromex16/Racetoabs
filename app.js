@@ -185,7 +185,7 @@ async function handleSaveEntry() {
 
   state.saving = false;
   btn.disabled = false;
-  btn.textContent = "Save check-in";
+  btn.textContent = "Save";
 
   if (error) {
     flashStatus("Couldn't save: " + error.message);
@@ -204,67 +204,170 @@ function flashStatus(msg) {
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────────
+const RING_CIRCUMFERENCE = 2 * Math.PI * 84; // matches r=84 in markup
+
 function renderApp() {
   $("#hello").textContent = state.profile?.display_name ? `Hi, ${state.profile.display_name}` : "";
-  renderHero();
+  renderRing();
+  renderStats();
   renderCheckin();
   renderLeaderboard();
   renderWeekStrip();
 }
 
-function renderHero() {
+// Smoothly animate a number from its previous value to the target.
+function animateNumber(el, target, opts = {}) {
+  if (!el) return;
+  const dur = opts.duration ?? 700;
+  const from = Number(el.dataset.cur ?? "0") || 0;
+  if (from === target) {
+    el.textContent = String(target);
+    el.dataset.cur = String(target);
+    return;
+  }
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const v = Math.round(from + (target - from) * eased);
+    el.textContent = String(v);
+    if (t < 1) requestAnimationFrame(tick);
+    else el.dataset.cur = String(target);
+  }
+  requestAnimationFrame(tick);
+}
+
+function renderRing() {
+  const today = todayISO();
+  $("#ring-date").textContent = fmtDate(today);
+  $("#ring-max").textContent = String(MAX_DAILY);
+
+  const inWindow = isInChallengeWindow(today);
+  const todayEntry = state.entries.find(
+    (e) => e.user_id === state.user.id && e.date === today
+  );
+  const draftAnswers = {};
+  for (const q of QUESTIONS) draftAnswers[q.id] = !!state.draft[q.id];
+  const points = computePoints(draftAnswers);
+  const pct = MAX_DAILY > 0 ? Math.min(points / MAX_DAILY, 1) : 0;
+
+  animateNumber($("#ring-num"), points);
+
+  const fillEl = $("#ring-fill");
+  fillEl.setAttribute("stroke-dasharray", String(RING_CIRCUMFERENCE));
+  fillEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - pct));
+
+  const checkedCount = QUESTIONS.filter((q) => draftAnswers[q.id]).length;
+  const tag = inWindow
+    ? `${checkedCount} of ${QUESTIONS.length} checked`
+    : (today < state.settings.challenge_start_date ? "challenge hasn't started" : "challenge ended");
+  $("#ring-tag").textContent = tag;
+
+  let stateMsg = "";
+  if (!inWindow) {
+    stateMsg = "";
+  } else if (todayEntry && JSON.stringify(draftAnswers) === JSON.stringify(todayEntry.answers)) {
+    stateMsg = points === MAX_DAILY ? "Perfect day. Locked in." : "Saved for today";
+  } else if (todayEntry) {
+    stateMsg = "Unsaved changes — tap Save";
+  } else if (checkedCount > 0) {
+    stateMsg = "Tap Save to log today";
+  } else {
+    stateMsg = "Tap an item below to start";
+  }
+  $("#ring-state").textContent = stateMsg;
+
+  document.querySelector(".bento-ring").classList.toggle(
+    "complete",
+    inWindow && points === MAX_DAILY
+  );
+}
+
+function renderStats() {
   const start = state.settings.challenge_start_date;
   const total = state.settings.challenge_days;
   const today = todayISO();
-  const dayNum = clamp(daysBetween(start, today) + 1, 0, total);
-  $("#hero-day-num").textContent = String(Math.max(dayNum, 0));
-  $("#hero-day-total").textContent = String(total);
+  const rawDay = daysBetween(start, today) + 1;
+  const dayNum = clamp(rawDay, 0, total);
 
-  const startLabel = fmtDate(start);
-  const endLabel = fmtDate(addDays(start, total - 1));
-  $("#hero-dates").textContent = `${startLabel} → ${endLabel}`;
+  $("#stat-day-total").textContent = String(total);
+  animateNumber($("#stat-day"), Math.max(dayNum, 0));
+
+  const endIso = addDays(start, total - 1);
+  let daySub;
+  if (today < start) daySub = `Starts ${fmtDate(start)}`;
+  else if (today > endIso) daySub = `Ended ${fmtDate(endIso)}`;
+  else {
+    const left = total - dayNum;
+    daySub = left === 0 ? "Final day" : `${left} day${left === 1 ? "" : "s"} to go`;
+  }
+  $("#stat-day-sub").textContent = daySub;
+  $("#day-progress").style.width = `${total > 0 ? clamp((dayNum / total) * 100, 0, 100) : 0}%`;
+
+  const streak = currentStreakFor(state.user.id);
+  animateNumber($("#stat-streak"), streak);
+  const dotsEl = $("#streak-dots");
+  dotsEl.innerHTML = "";
+  const dotCount = 7;
+  for (let i = 0; i < dotCount; i++) {
+    const d = document.createElement("i");
+    if (i < Math.min(streak, dotCount)) d.classList.add("on");
+    dotsEl.appendChild(d);
+  }
+
+  const ranking = computeRanking();
+  const myIndex = ranking.findIndex((r) => r.userId === state.user.id);
+  if (myIndex >= 0) {
+    $("#stat-rank").textContent = String(myIndex + 1);
+    if (ranking.length <= 1) {
+      $("#stat-rank-sub").textContent = "be the first to log";
+    } else if (myIndex === 0) {
+      const lead = ranking[0].points - ranking[1].points;
+      $("#stat-rank-sub").textContent = lead > 0 ? `+${lead} on 2nd` : `tied at top`;
+    } else {
+      const gap = ranking[myIndex - 1].points - ranking[myIndex].points;
+      $("#stat-rank-sub").textContent = gap === 0
+        ? `tied with #${myIndex}`
+        : `${gap} pt${gap === 1 ? "" : "s"} behind #${myIndex}`;
+    }
+  } else {
+    $("#stat-rank").textContent = "–";
+    $("#stat-rank-sub").textContent = "log a day to enter";
+  }
 
   const myEntries = state.entries.filter(
     (e) => e.user_id === state.user.id && isInChallengeWindow(e.date)
   );
   const myPoints = myEntries.reduce((s, e) => s + e.points, 0);
-  $("#stat-points").textContent = String(myPoints);
+  animateNumber($("#stat-points"), myPoints);
 
-  $("#stat-streak").textContent = String(currentStreakFor(state.user.id));
-
-  const ranking = computeRanking();
-  const myRank = ranking.findIndex((r) => r.userId === state.user.id);
-  $("#stat-rank").textContent = myRank >= 0 ? String(myRank + 1) : "–";
-
-  const pct = total > 0 ? clamp((dayNum / total) * 100, 0, 100) : 0;
-  $("#progress-bar").style.width = `${pct}%`;
+  const maxSoFar = Math.max(dayNum, 0) * MAX_DAILY;
+  $("#stat-points-sub").textContent = maxSoFar > 0
+    ? `of ${maxSoFar} possible · ${Math.round((myPoints / maxSoFar) * 100)}%`
+    : "challenge starting soon";
 }
 
 function renderCheckin() {
   const today = todayISO();
-  $("#checkin-date").textContent = fmtDate(today);
-  $("#checkin-max").textContent = String(MAX_DAILY);
-
   const inWindow = isInChallengeWindow(today);
   const outEl = $("#checkin-out-of-window");
   const list = $("#checkin-list");
-  const footer = document.querySelector(".checkin-footer");
+  const saveBtn = $("#save-entry");
 
   if (!inWindow) {
     const start = state.settings.challenge_start_date;
-    const today2 = todayISO();
-    const before = today2 < start;
+    const before = today < start;
     outEl.classList.remove("hidden");
     outEl.textContent = before
       ? `Challenge starts ${fmtDate(start)}. Hang tight.`
       : `Challenge ended ${fmtDate(addDays(start, state.settings.challenge_days - 1))}.`;
     list.classList.add("hidden");
-    footer.classList.add("hidden");
+    saveBtn.classList.add("hidden");
     return;
   }
   outEl.classList.add("hidden");
   list.classList.remove("hidden");
-  footer.classList.remove("hidden");
+  saveBtn.classList.remove("hidden");
 
   list.innerHTML = "";
   for (const q of QUESTIONS) {
@@ -295,7 +398,6 @@ function renderCheckin() {
     });
     list.appendChild(item);
   }
-  updateCheckinSummary();
 }
 
 function toggleQuestion(qid) {
@@ -305,25 +407,25 @@ function toggleQuestion(qid) {
     item.classList.toggle("checked", !!state.draft[qid]);
     item.setAttribute("aria-pressed", state.draft[qid] ? "true" : "false");
   }
-  updateCheckinSummary();
-}
-
-function updateCheckinSummary() {
-  const answers = {};
-  for (const q of QUESTIONS) answers[q.id] = !!state.draft[q.id];
-  $("#checkin-points").textContent = String(computePoints(answers));
+  renderRing();
 }
 
 function renderLeaderboard() {
   const ranking = computeRanking();
   const ul = $("#leaderboard");
   const empty = $("#leaderboard-empty");
+  const meta = $("#leaderboard-meta");
   ul.innerHTML = "";
   if (ranking.length === 0) {
     empty.classList.remove("hidden");
+    if (meta) meta.textContent = "";
     return;
   }
   empty.classList.add("hidden");
+  if (meta) {
+    const total = ranking.length;
+    meta.textContent = `${total} racer${total === 1 ? "" : "s"}`;
+  }
 
   ranking.forEach((row, i) => {
     const rank = i + 1;
@@ -362,9 +464,17 @@ function renderWeekStrip() {
     if (iso === today) cell.classList.add("today");
     if (entry) cell.classList.add("logged");
     else if (iso < today && isInChallengeWindow(iso)) cell.classList.add("missed");
+    else if (!isInChallengeWindow(iso)) cell.classList.add("future");
+    const numDisplay = entry
+      ? entry.points
+      : iso === today
+        ? "–"
+        : isInChallengeWindow(iso)
+          ? "0"
+          : "·";
     cell.innerHTML = `
       <div class="day-name">${d.toLocaleDateString(undefined, { weekday: "short" })}</div>
-      <div class="day-num">${entry ? entry.points : (iso === today ? "–" : (isInChallengeWindow(iso) ? "0" : "·"))}</div>
+      <div class="day-num">${numDisplay}</div>
     `;
     strip.appendChild(cell);
   }
