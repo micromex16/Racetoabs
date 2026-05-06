@@ -80,7 +80,7 @@
       <div class="bento">
 
         <!-- Hero: today's points ring -->
-        <section class="card bento-ring" data-accent="orange">
+        <section class="card bento-ring" data-accent="blue">
           <div class="card-head">
             <span class="eyebrow">Today</span>
             <span class="muted small" id="ring-date"></span>
@@ -89,12 +89,12 @@
             <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
               <defs>
                 <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#ff5b3a"/>
-                  <stop offset="55%" stop-color="#ff2d6f"/>
-                  <stop offset="100%" stop-color="#ffb247"/>
+                  <stop offset="0%" stop-color="#3b82f6"/>
+                  <stop offset="55%" stop-color="#06b6d4"/>
+                  <stop offset="100%" stop-color="#34d399"/>
                 </linearGradient>
                 <filter id="ring-glow" x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feGaussianBlur stdDeviation="2" result="blur"/>
                   <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
               </defs>
@@ -114,7 +114,7 @@
         </section>
 
         <!-- Stat: Day X / 30 -->
-        <section class="card bento-stat" data-accent="cyan">
+        <section class="card bento-stat" data-accent="blue">
           <div class="stat-eyebrow">Challenge</div>
           <div class="stat-big"><span id="stat-day">0</span><span class="stat-of">/<span id="stat-day-total">30</span></span></div>
           <div class="stat-sub" id="stat-day-sub">—</div>
@@ -122,7 +122,7 @@
         </section>
 
         <!-- Stat: streak -->
-        <section class="card bento-stat" data-accent="yellow">
+        <section class="card bento-stat" data-accent="rose">
           <div class="stat-eyebrow">Streak</div>
           <div class="stat-big"><span id="stat-streak">0</span><span class="stat-of">d</span></div>
           <div class="stat-sub">consecutive days</div>
@@ -130,7 +130,7 @@
         </section>
 
         <!-- Stat: rank -->
-        <section class="card bento-stat" data-accent="pink">
+        <section class="card bento-stat" data-accent="teal">
           <div class="stat-eyebrow">Rank</div>
           <div class="stat-big">#<span id="stat-rank">–</span></div>
           <div class="stat-sub" id="stat-rank-sub">—</div>
@@ -144,7 +144,7 @@
         </section>
 
         <!-- Today's check-in -->
-        <section class="card bento-checkin" data-accent="orange">
+        <section class="card bento-checkin" data-accent="green">
           <div class="card-head">
             <h2>Today's check-in</h2>
             <button id="save-entry" type="button" class="btn-pill">Save</button>
@@ -155,7 +155,7 @@
         </section>
 
         <!-- Leaderboard -->
-        <section class="card bento-leaderboard" data-accent="cyan">
+        <section class="card bento-leaderboard" data-accent="blue">
           <div class="card-head">
             <h2>Leaderboard</h2>
             <span class="muted small" id="leaderboard-meta"></span>
@@ -165,7 +165,7 @@
         </section>
 
         <!-- Week strip -->
-        <section class="card bento-week" data-accent="green">
+        <section class="card bento-week" data-accent="teal">
           <div class="card-head">
             <h2>Last 7 days</h2>
             <span class="muted small">Daily points</span>
