@@ -2,87 +2,147 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d12" />
 <title>Race to Abs</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <h1>Race to Abs</h1>
-    <p class="tagline">Daily accountability. Weekly bragging rights.</p>
-  </header>
+  <!-- Loading splash -->
+  <div id="view-loading" class="view view-center">
+    <div class="brand-mark">
+      <div class="logo-ring"><span>RA</span></div>
+      <h1 class="brand-name">Race to Abs</h1>
+    </div>
+    <p class="muted">Loading…</p>
+  </div>
 
-  <main>
-    <section class="card">
-      <h2>Log Today</h2>
-      <form id="entry-form">
+  <!-- Config error -->
+  <div id="view-config" class="view view-center hidden">
+    <div class="card narrow">
+      <h2>Setup needed</h2>
+      <p>Add your Supabase project URL and anon key to <code>config.js</code>, then reload.</p>
+      <p class="muted">See the <code>README.md</code> for step-by-step setup.</p>
+    </div>
+  </div>
+
+  <!-- Sign in -->
+  <div id="view-auth" class="view view-center hidden">
+    <div class="brand-mark">
+      <div class="logo-ring"><span>RA</span></div>
+      <h1 class="brand-name">Race to Abs</h1>
+      <p class="tagline">30 days. Daily check-ins. May the best discipline win.</p>
+    </div>
+    <div class="card narrow">
+      <h2>Sign in</h2>
+      <p class="muted">We'll email you a one-tap login link.</p>
+      <form id="signin-form">
         <div class="field">
-          <label for="name">Name</label>
-          <input type="text" id="name" name="name" required autocomplete="name" />
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" required placeholder="you@email.com" />
         </div>
-
-        <div class="field">
-          <label for="date">Date</label>
-          <input type="date" id="date" name="date" required />
-          <small id="timestamp-note" class="muted"></small>
-        </div>
-
-        <div id="questions"></div>
-
-        <div class="actions">
-          <button type="submit">Save Entry</button>
-          <span id="save-status" class="muted"></span>
-        </div>
+        <button type="submit" class="btn-primary">Send magic link</button>
+        <p id="signin-status" class="muted"></p>
       </form>
-    </section>
+    </div>
+  </div>
 
-    <section class="card">
-      <div class="row">
-        <h2>This Week</h2>
-        <div>
-          <label for="week-picker" class="muted">Week of</label>
-          <input type="date" id="week-picker" />
+  <!-- Onboarding (set display name) -->
+  <div id="view-onboarding" class="view view-center hidden">
+    <div class="card narrow">
+      <h2>Create your profile</h2>
+      <p class="muted">This is the only thing you set up. No weight, no measurements — just your name on the board.</p>
+      <form id="profile-form">
+        <div class="field">
+          <label for="display-name">Display name</label>
+          <input type="text" id="display-name" name="display-name" maxlength="40" required placeholder="Your name" />
         </div>
+        <button type="submit" class="btn-primary">Enter the race</button>
+        <p id="profile-status" class="muted"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="view-app" class="view hidden">
+    <header class="app-header">
+      <div class="brand-mark small">
+        <div class="logo-ring small"><span>RA</span></div>
+        <span class="brand-name small">Race to Abs</span>
       </div>
-      <table id="leaderboard">
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Name</th>
-            <th>Points</th>
-            <th>Days Logged</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <p id="leaderboard-empty" class="muted hidden">No entries yet for this week. Be the first!</p>
-    </section>
-
-    <section class="card">
-      <div class="row">
-        <h2>All Entries</h2>
-        <button id="clear-all" class="danger" type="button">Clear All Data</button>
+      <div class="header-right">
+        <span id="hello" class="muted"></span>
+        <button id="signout-btn" type="button" class="btn-ghost">Sign out</button>
       </div>
-      <table id="entries-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Name</th>
-            <th>Points</th>
-            <th>Logged At</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <p id="entries-empty" class="muted hidden">No entries yet.</p>
-    </section>
-  </main>
+    </header>
 
-  <footer>
-    <p class="muted">Data is stored in this browser only.</p>
-  </footer>
+    <main class="app-main">
+      <!-- Hero: challenge progress -->
+      <section class="hero card">
+        <div class="hero-top">
+          <div>
+            <div class="eyebrow">Challenge</div>
+            <div class="hero-day"><span id="hero-day-num">0</span><span class="hero-day-of">/<span id="hero-day-total">30</span></span></div>
+            <div class="muted" id="hero-dates"></div>
+          </div>
+          <div class="hero-stats">
+            <div class="stat">
+              <div class="stat-num" id="stat-points">0</div>
+              <div class="stat-label">Points</div>
+            </div>
+            <div class="stat">
+              <div class="stat-num"><span id="stat-streak">0</span></div>
+              <div class="stat-label">Day streak</div>
+            </div>
+            <div class="stat">
+              <div class="stat-num">#<span id="stat-rank">–</span></div>
+              <div class="stat-label">Rank</div>
+            </div>
+          </div>
+        </div>
+        <div class="progress">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </section>
 
+      <!-- Today's check-in -->
+      <section class="card">
+        <div class="row">
+          <h2 id="checkin-title">Today's check-in</h2>
+          <div class="muted" id="checkin-date"></div>
+        </div>
+        <div id="checkin-out-of-window" class="muted hidden"></div>
+        <div id="checkin-list"></div>
+        <div class="checkin-footer">
+          <div class="checkin-summary">
+            <span id="checkin-points">0</span><span class="muted"> / <span id="checkin-max">18</span> pts today</span>
+          </div>
+          <button id="save-entry" type="button" class="btn-primary">Save check-in</button>
+        </div>
+        <p id="entry-status" class="muted"></p>
+      </section>
+
+      <!-- Leaderboard -->
+      <section class="card">
+        <h2>Leaderboard</h2>
+        <ul id="leaderboard" class="leaderboard"></ul>
+        <p id="leaderboard-empty" class="muted hidden">No check-ins yet. Be first.</p>
+      </section>
+
+      <!-- Last 7 days strip -->
+      <section class="card">
+        <h2>Your last 7 days</h2>
+        <div id="week-strip" class="week-strip"></div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p class="muted">All entries sync across devices. Sign in on any phone.</p>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
