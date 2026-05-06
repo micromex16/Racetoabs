@@ -47,7 +47,10 @@
   --shadow-md: 0 4px 10px rgba(20, 30, 60, 0.06), 0 18px 40px rgba(20, 30, 60, 0.08);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
 
 html, body {
   margin: 0;
@@ -62,6 +65,16 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
   letter-spacing: -0.005em;
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Tap targets: no callout, no selection (so iOS doesn't pop a copy menu). */
+button, .checkin-item, .leaderboard li, .day-cell, .toggle, [role="button"] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 body {
@@ -286,7 +299,7 @@ input::placeholder { color: var(--muted-2); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.25rem;
+  padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) 1rem max(1.25rem, env(safe-area-inset-left));
   max-width: 1100px;
   margin: 0 auto;
 }
@@ -298,11 +311,17 @@ input::placeholder { color: var(--muted-2); }
 .app-main {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 0 1rem 2rem;
+  padding: 0 max(1rem, env(safe-area-inset-right)) 2rem max(1rem, env(safe-area-inset-left));
 }
 .app-footer {
-  padding: 2rem 1rem;
+  padding: 2rem 1rem max(2rem, env(safe-area-inset-bottom));
   text-align: center;
+}
+.view-center {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-top: max(2rem, env(safe-area-inset-top));
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
 }
 
 /* ── Bento grid ────────────────────────────────────────────────────────── */

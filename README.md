@@ -81,9 +81,22 @@ To rebalance, edit the `QUESTIONS` array at the top of `app.js`.
 
 ## How users join
 
-1. Visit the site.
-2. Enter their email → click the link in the inbox.
+1. Visit the site on their iPhone.
+2. Enter their email → click the magic link from the inbox.
 3. Pick a display name. That's it — they're in.
+
+### Installing on iPhone (Add to Home Screen)
+
+The app is a PWA, so it installs to the home screen and launches like a native app — no App Store, no TestFlight.
+
+On iPhone Safari (must be Safari, not Chrome on iOS):
+
+1. Open the site URL.
+2. Tap the **Share** button (square with arrow up).
+3. Scroll down → **Add to Home Screen**.
+4. Tap **Add**.
+
+A blue/teal/green "RA" icon appears on the home screen. Tapping it launches the app full-screen with no Safari chrome — looks and feels native, with safe-area padding for the notch and home indicator.
 
 ## Files
 
