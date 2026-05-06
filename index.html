@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Race to Abs</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Race to Abs</h1>
+    <p class="tagline">Daily accountability. Weekly bragging rights.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Log Today</h2>
+      <form id="entry-form">
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" required autocomplete="name" />
+        </div>
+
+        <div class="field">
+          <label for="date">Date</label>
+          <input type="date" id="date" name="date" required />
+          <small id="timestamp-note" class="muted"></small>
+        </div>
+
+        <div id="questions"></div>
+
+        <div class="actions">
+          <button type="submit">Save Entry</button>
+          <span id="save-status" class="muted"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <h2>This Week</h2>
+        <div>
+          <label for="week-picker" class="muted">Week of</label>
+          <input type="date" id="week-picker" />
+        </div>
+      </div>
+      <table id="leaderboard">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Points</th>
+            <th>Days Logged</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="leaderboard-empty" class="muted hidden">No entries yet for this week. Be the first!</p>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <h2>All Entries</h2>
+        <button id="clear-all" class="danger" type="button">Clear All Data</button>
+      </div>
+      <table id="entries-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Name</th>
+            <th>Points</th>
+            <th>Logged At</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="entries-empty" class="muted hidden">No entries yet.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p class="muted">Data is stored in this browser only.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
