@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Race to Abs — design preview</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding-bottom: 2rem; }
+  /* Freeze animations so static screenshot captures the final state. */
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition: none !important;
+  }
+  /* Make sure ring fill renders at its final stroke offset, not animated from 0. */
+  .ring-fill { transition: none !important; }
+</style>
+</head>
+<body>
+  <div id="view-app" class="view">
+    <header class="app-header">
+      <div class="brand-mark small">
+        <div class="logo-ring small"><span>RA</span></div>
+        <span class="brand-name small">Race to Abs</span>
+      </div>
+      <div class="header-right">
+        <span class="muted">Hi, Sarah</span>
+        <button type="button" class="btn-ghost">Sign out</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div class="bento">
+
+        <!-- Hero ring: 12 / 18 today (≈67% filled) -->
+        <section class="card bento-ring" data-accent="orange">
+          <div class="card-head">
+            <span class="eyebrow">Today</span>
+            <span class="muted small">Wed, May 6</span>
+          </div>
+          <div class="ring-wrap">
+            <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+              <defs>
+                <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#ff5b3a"/>
+                  <stop offset="55%" stop-color="#ff2d6f"/>
+                  <stop offset="100%" stop-color="#ffb247"/>
+                </linearGradient>
+                <filter id="ring-glow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <circle class="ring-track" cx="100" cy="100" r="84"/>
+              <!-- circumference = 527.788; offset = 527.788 * (1 - 12/18) ≈ 175.93 -->
+              <circle class="ring-fill" cx="100" cy="100" r="84"
+                transform="rotate(-90 100 100)" filter="url(#ring-glow)"
+                style="stroke-dashoffset: 175.93;"/>
+            </svg>
+            <div class="ring-text">
+              <div class="ring-num">12</div>
+              <div class="ring-unit">/ 18 pts</div>
+              <div class="ring-tag">5 of 8 checked</div>
+            </div>
+          </div>
+          <div class="ring-foot">
+            <span class="muted small">Unsaved changes — tap Save</span>
+          </div>
+        </section>
+
+        <!-- Stat: Day -->
+        <section class="card bento-stat" data-accent="cyan">
+          <div class="stat-eyebrow">Challenge</div>
+          <div class="stat-big">12<span class="stat-of">/30</span></div>
+          <div class="stat-sub">18 days to go</div>
+          <div class="bar"><div class="bar-fill" style="width: 40%;"></div></div>
+        </section>
+
+        <!-- Stat: streak -->
+        <section class="card bento-stat" data-accent="yellow">
+          <div class="stat-eyebrow">Streak</div>
+          <div class="stat-big">8<span class="stat-of">d</span></div>
+          <div class="stat-sub">consecutive days</div>
+          <div class="dots">
+            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+            <i class="on"></i><i class="on"></i><i class="on"></i>
+          </div>
+        </section>
+
+        <!-- Stat: rank -->
+        <section class="card bento-stat" data-accent="pink">
+          <div class="stat-eyebrow">Rank</div>
+          <div class="stat-big">#2</div>
+          <div class="stat-sub">22 pts behind #1</div>
+        </section>
+
+        <!-- Stat: total -->
+        <section class="card bento-stat" data-accent="green">
+          <div class="stat-eyebrow">Total</div>
+          <div class="stat-big">156</div>
+          <div class="stat-sub">of 216 possible · 72%</div>
+        </section>
+
+        <!-- Check-in -->
+        <section class="card bento-checkin" data-accent="orange">
+          <div class="card-head">
+            <h2>Today's check-in</h2>
+            <button type="button" class="btn-pill">Save</button>
+          </div>
+          <div id="checkin-list">
+            <div class="checkin-item checked">
+              <div class="checkin-label">
+                <div class="checkin-q">30 minutes of exercise</div>
+                <div class="checkin-pts">+3 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+            <div class="checkin-item checked">
+              <div class="checkin-label">
+                <div class="checkin-q">Extra 5 minutes of core</div>
+                <div class="checkin-pts">+2 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+            <div class="checkin-item checked">
+              <div class="checkin-label">
+                <div class="checkin-q">Hit your nutrition goal</div>
+                <div class="checkin-pts">+3 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+            <div class="checkin-item">
+              <div class="checkin-label">
+                <div class="checkin-q">More than 7 hours of sleep</div>
+                <div class="checkin-pts">+2 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+            <div class="checkin-item checked">
+              <div class="checkin-label">
+                <div class="checkin-q">More than 60 oz of water</div>
+                <div class="checkin-pts">+2 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+            <div class="checkin-item checked">
+              <div class="checkin-label">
+                <div class="checkin-q">Stretched or foam rolled</div>
+                <div class="checkin-pts">+2 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+            <div class="checkin-item">
+              <div class="checkin-label">
+                <div class="checkin-q">No alcohol today</div>
+                <div class="checkin-pts">+2 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+            <div class="checkin-item">
+              <div class="checkin-label">
+                <div class="checkin-q">Less than 1 hr non-work screen time</div>
+                <div class="checkin-pts">+2 pts</div>
+              </div>
+              <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Leaderboard -->
+        <section class="card bento-leaderboard" data-accent="cyan">
+          <div class="card-head">
+            <h2>Leaderboard</h2>
+            <span class="muted small">4 racers</span>
+          </div>
+          <ul class="leaderboard">
+            <li>
+              <div class="rank-badge rank-1">1</div>
+              <div>
+                <div class="lb-name">Jess</div>
+                <div class="lb-meta">12 days logged</div>
+              </div>
+              <div class="lb-points">178</div>
+              <div class="lb-streak">12d</div>
+            </li>
+            <li class="you">
+              <div class="rank-badge rank-2">2</div>
+              <div>
+                <div class="lb-name">Sarah <span class="muted">· you</span></div>
+                <div class="lb-meta">11 days logged</div>
+              </div>
+              <div class="lb-points">156</div>
+              <div class="lb-streak">8d</div>
+            </li>
+            <li>
+              <div class="rank-badge rank-3">3</div>
+              <div>
+                <div class="lb-name">Maya</div>
+                <div class="lb-meta">11 days logged</div>
+              </div>
+              <div class="lb-points">142</div>
+              <div class="lb-streak">11d</div>
+            </li>
+            <li>
+              <div class="rank-badge">4</div>
+              <div>
+                <div class="lb-name">Brooke</div>
+                <div class="lb-meta">8 days logged</div>
+              </div>
+              <div class="lb-points">98</div>
+              <div class="lb-streak">6d</div>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Week strip -->
+        <section class="card bento-week" data-accent="green">
+          <div class="card-head">
+            <h2>Last 7 days</h2>
+            <span class="muted small">Daily points</span>
+          </div>
+          <div class="week-strip">
+            <div class="day-cell logged"><div class="day-name">Thu</div><div class="day-num">14</div></div>
+            <div class="day-cell logged"><div class="day-name">Fri</div><div class="day-num">16</div></div>
+            <div class="day-cell logged"><div class="day-name">Sat</div><div class="day-num">10</div></div>
+            <div class="day-cell logged"><div class="day-name">Sun</div><div class="day-num">18</div></div>
+            <div class="day-cell missed"><div class="day-name">Mon</div><div class="day-num">0</div></div>
+            <div class="day-cell logged"><div class="day-name">Tue</div><div class="day-num">14</div></div>
+            <div class="day-cell today logged"><div class="day-name">Wed</div><div class="day-num">12</div></div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p class="muted">All entries sync across devices. Sign in on any phone.</p>
+    </footer>
+  </div>
+</body>
+</html>
