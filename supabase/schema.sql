@@ -22,8 +22,12 @@ on conflict (id) do nothing;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null check (length(trim(display_name)) > 0),
+  custom_goal text,
   created_at timestamptz not null default now()
 );
+
+-- Migration for projects created before custom_goal existed.
+alter table public.profiles add column if not exists custom_goal text;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Entries: one row per (user, date). Answers are stored as a JSON object of

@@ -3,13 +3,14 @@
 
 const QUESTIONS = [
   { id: "exercise",  text: "30 minutes of exercise",                points: 3 },
-  { id: "core",      text: "Extra 5 minutes of core",               points: 2 },
+  { id: "core",      text: "Extra 5 minutes of core",               points: 1 },
   { id: "nutrition", text: "Hit your nutrition goal",               points: 3 },
   { id: "sleep",     text: "More than 7 hours of sleep",            points: 2 },
   { id: "water",     text: "More than 60 oz of water",              points: 2 },
-  { id: "stretch",   text: "Stretched or foam rolled",              points: 2 },
+  { id: "stretch",   text: "Stretched or foam rolled",              points: 1 },
   { id: "noAlcohol", text: "No alcohol today",                      points: 2 },
   { id: "screen",    text: "Less than 1 hr non-work screen time",   points: 2 },
+  { id: "custom",    text: "Your custom goal",                      points: 2, custom: true },
 ];
 
 const MAX_DAILY = QUESTIONS.reduce((s, q) => s + q.points, 0);
@@ -66,7 +67,10 @@ async function applySession(session) {
 
   // Load profile + shared data
   await loadProfile();
-  if (!state.profile) {
+  if (!state.profile || !state.profile.custom_goal || !state.profile.custom_goal.trim()) {
+    // Pre-fill if returning to finish onboarding
+    if (state.profile?.display_name) $("#display-name").value = state.profile.display_name;
+    if (state.profile?.custom_goal) $("#custom-goal").value = state.profile.custom_goal;
     show("view-onboarding");
     return;
   }
@@ -140,12 +144,13 @@ async function handleSignOut() {
 async function handleCreateProfile(e) {
   e.preventDefault();
   const name = $("#display-name").value.trim();
-  if (!name) return;
+  const customGoal = $("#custom-goal").value.trim();
+  if (!name || !customGoal) return;
   const status = $("#profile-status");
   status.textContent = "Saving…";
   const { error } = await state.client
     .from("profiles")
-    .insert({ id: state.user.id, display_name: name });
+    .upsert({ id: state.user.id, display_name: name, custom_goal: customGoal });
   if (error) {
     status.textContent = "Couldn't save: " + error.message;
     return;
@@ -154,6 +159,21 @@ async function handleCreateProfile(e) {
   await Promise.all([loadSettings(), loadAllData()]);
   renderApp();
   show("view-app");
+}
+
+async function updateCustomGoal(newGoal) {
+  const trimmed = (newGoal || "").trim();
+  if (!trimmed) return;
+  const { error } = await state.client
+    .from("profiles")
+    .update({ custom_goal: trimmed })
+    .eq("id", state.user.id);
+  if (error) {
+    flashStatus("Couldn't update goal: " + error.message);
+    return;
+  }
+  state.profile.custom_goal = trimmed;
+  renderCheckin();
 }
 
 // ─── Entry handlers ───────────────────────────────────────────────────────
@@ -372,16 +392,27 @@ function renderCheckin() {
   list.innerHTML = "";
   for (const q of QUESTIONS) {
     const checked = !!state.draft[q.id];
+    const isCustom = !!q.custom;
+    const labelText = isCustom
+      ? (state.profile?.custom_goal?.trim() || "Set a custom goal")
+      : q.text;
     const item = document.createElement("div");
-    item.className = "checkin-item" + (checked ? " checked" : "");
+    item.className = "checkin-item" + (checked ? " checked" : "") + (isCustom ? " custom" : "");
     item.dataset.qid = q.id;
     item.setAttribute("role", "button");
     item.setAttribute("tabindex", "0");
     item.setAttribute("aria-pressed", checked ? "true" : "false");
+    const editBtn = isCustom
+      ? `<button type="button" class="edit-goal" aria-label="Edit custom goal" title="Edit goal">
+           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+             <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+           </svg>
+         </button>`
+      : "";
     item.innerHTML = `
       <div class="checkin-label">
-        <div class="checkin-q">${escapeHtml(q.text)}</div>
-        <div class="checkin-pts">+${q.points} pts</div>
+        <div class="checkin-q">${escapeHtml(labelText)}${editBtn}</div>
+        <div class="checkin-pts">+${q.points} pts${isCustom ? " · your goal" : ""}</div>
       </div>
       <div class="check-circle" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
@@ -389,13 +420,24 @@ function renderCheckin() {
         </svg>
       </div>
     `;
-    item.addEventListener("click", () => toggleQuestion(q.id));
+    item.addEventListener("click", (e) => {
+      if (e.target.closest(".edit-goal")) return;
+      toggleQuestion(q.id);
+    });
     item.addEventListener("keydown", (e) => {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         toggleQuestion(q.id);
       }
     });
+    if (isCustom) {
+      item.querySelector(".edit-goal")?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const current = state.profile?.custom_goal || "";
+        const next = window.prompt("Update your custom goal:", current);
+        if (next != null) updateCustomGoal(next);
+      });
+    }
     list.appendChild(item);
   }
 }

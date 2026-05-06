@@ -610,7 +610,35 @@ input::placeholder { color: var(--muted-2); }
   flex-direction: column;
   gap: 0.15rem;
 }
-.checkin-q { font-weight: 600; font-size: 0.95rem; color: var(--text); }
+.checkin-q {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.edit-goal {
+  background: transparent;
+  border: 1px solid var(--border-2);
+  color: var(--muted);
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+.edit-goal:hover {
+  color: var(--blue-1);
+  border-color: var(--blue-1);
+  background: rgba(59, 130, 246, 0.08);
+}
+.checkin-item.checked .edit-goal { color: var(--good); border-color: rgba(22, 163, 74, 0.4); }
+.checkin-item.custom .checkin-q { font-style: italic; }
 .checkin-pts {
   font-size: 0.7rem;
   color: var(--muted);

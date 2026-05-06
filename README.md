@@ -67,15 +67,18 @@ python3 -m http.server 8000
 | Item | Points |
 |---|---|
 | 30 minutes of exercise | 3 |
-| Extra 5 minutes of core | 2 |
+| Extra 5 minutes of core | 1 |
 | Hit your nutrition goal | 3 |
 | More than 7 hours of sleep | 2 |
 | More than 60 oz of water | 2 |
-| Stretched or foam rolled | 2 |
+| Stretched or foam rolled | 1 |
 | No alcohol today | 2 |
 | Less than 1 hr non-work screen time | 2 |
+| Your custom goal (set per-user, e.g. "Read 30 mins") | 2 |
 | **Daily max** | **18** |
 | **30-day max** | **540** |
+
+Each user picks their own custom goal during onboarding and can change it anytime via the pencil icon on that row in the daily check-in.
 
 To rebalance, edit the `QUESTIONS` array at the top of `app.js`.
 

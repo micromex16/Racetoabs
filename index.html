@@ -59,15 +59,20 @@
     </div>
   </div>
 
-  <!-- Onboarding (set display name) -->
+  <!-- Onboarding (set display name + custom goal) -->
   <div id="view-onboarding" class="view view-center hidden">
     <div class="card narrow">
       <h2>Create your profile</h2>
-      <p class="muted">This is the only thing you set up. No weight, no measurements — just your name on the board.</p>
+      <p class="muted">No weight, no measurements. Just your name on the board and one personal goal of your choosing.</p>
       <form id="profile-form">
         <div class="field">
           <label for="display-name">Display name</label>
           <input type="text" id="display-name" name="display-name" maxlength="40" required placeholder="Your name" />
+        </div>
+        <div class="field">
+          <label for="custom-goal">Your custom goal</label>
+          <input type="text" id="custom-goal" name="custom-goal" maxlength="60" required placeholder='e.g. "Read 30 mins" or "10 mins meditation"' />
+          <small class="muted small">Worth 2 pts a day. You can change it anytime.</small>
         </div>
         <button type="submit" class="btn-primary">Enter the race</button>
         <p id="profile-status" class="muted"></p>
