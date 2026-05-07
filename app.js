@@ -23,10 +23,24 @@ const state = {
   settings: null,         // { challenge_start_date, challenge_days }
   entries: [],            // all entries from all users
   profiles: [],           // all profiles
-  draft: {},              // { questionId: true } for the currently-edited day
-  editingDate: null,      // ISO date the check-in form is editing (defaults to today)
+  draft: {},              // { questionId: true } for the currently-displayed day
+  editingDate: null,      // ISO date being shown / edited (defaults to today)
+  viewingUserId: null,    // if set, we're looking at someone else's profile read-only
   saving: false,
 };
+
+function viewedUserId() {
+  return state.viewingUserId || state.user?.id;
+}
+
+function viewedProfile() {
+  const id = viewedUserId();
+  return state.profiles.find((p) => p.id === id) || null;
+}
+
+function isReadOnly() {
+  return !!state.viewingUserId;
+}
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -49,6 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#signout-btn")?.addEventListener("click", handleSignOut);
   $("#save-entry")?.addEventListener("click", handleSaveEntry);
   $("#back-to-today")?.addEventListener("click", () => setEditingDate(todayISO()));
+  $("#viewing-back")?.addEventListener("click", () => setViewingUser(state.user.id));
 
   // Boot
   bootstrap();
@@ -108,31 +123,39 @@ async function loadSettings() {
 
 async function loadAllData() {
   const [{ data: profiles }, { data: entries }] = await Promise.all([
-    state.client.from("profiles").select("id, display_name"),
+    state.client.from("profiles").select("id, display_name, custom_goal"),
     state.client.from("entries").select("id, user_id, date, answers, points").order("date", { ascending: false }),
   ]);
   state.profiles = profiles || [];
   state.entries = entries || [];
 
-  // Default the editing date to today, then seed the draft from any existing
-  // entry for that day.
   if (!state.editingDate) state.editingDate = todayISO();
   reseedDraftFromEditingDate();
 }
 
 function reseedDraftFromEditingDate() {
-  const mine = state.entries.find(
-    (e) => e.user_id === state.user.id && e.date === state.editingDate
+  const userId = viewedUserId();
+  const e = state.entries.find(
+    (x) => x.user_id === userId && x.date === state.editingDate
   );
-  state.draft = mine ? { ...mine.answers } : {};
+  state.draft = e ? { ...e.answers } : {};
 }
 
 function setEditingDate(iso) {
   if (!isInChallengeWindow(iso)) return;
-  if (iso > todayISO()) return; // no editing the future
+  if (iso > todayISO()) return; // no looking at the future
   state.editingDate = iso;
   reseedDraftFromEditingDate();
   renderApp();
+}
+
+function setViewingUser(userId) {
+  state.viewingUserId = userId === state.user?.id ? null : userId;
+  state.editingDate = todayISO();
+  reseedDraftFromEditingDate();
+  renderApp();
+  // Scroll to the top so they see the viewing banner + ring.
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // ─── Auth handlers ────────────────────────────────────────────────────────
@@ -282,11 +305,24 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * 84; // matches r=84 in markup
 
 function renderApp() {
   $("#hello").textContent = state.profile?.display_name ? `Hi, ${state.profile.display_name}` : "";
+  renderViewingBanner();
   renderRing();
   renderStats();
   renderCheckin();
   renderLeaderboard();
   renderWeekStrip();
+}
+
+function renderViewingBanner() {
+  const banner = $("#viewing-banner");
+  if (!banner) return;
+  const profile = viewedProfile();
+  if (isReadOnly() && profile) {
+    $("#viewing-name").textContent = profile.display_name;
+    banner.classList.remove("hidden");
+  } else {
+    banner.classList.add("hidden");
+  }
 }
 
 // Smoothly animate a number from its previous value to the target.
@@ -315,15 +351,20 @@ function renderRing() {
   const today = todayISO();
   const date = state.editingDate || today;
   const isToday = date === today;
+  const readOnly = isReadOnly();
+  const userId = viewedUserId();
   $("#ring-date").textContent = fmtDate(date);
   $("#ring-max").textContent = String(MAX_DAILY);
 
   const eyebrow = document.querySelector(".bento-ring .eyebrow");
-  if (eyebrow) eyebrow.textContent = isToday ? "Today" : "Logging";
+  if (eyebrow) {
+    if (readOnly) eyebrow.textContent = (viewedProfile()?.display_name?.split(/\s+/)[0]) || "Viewing";
+    else eyebrow.textContent = isToday ? "Today" : "Logging";
+  }
 
   const inWindow = isInChallengeWindow(date);
   const dayEntry = state.entries.find(
-    (e) => e.user_id === state.user.id && e.date === date
+    (e) => e.user_id === userId && e.date === date
   );
   const draftAnswers = {};
   for (const q of QUESTIONS) draftAnswers[q.id] = !!state.draft[q.id];
@@ -345,6 +386,10 @@ function renderRing() {
   let stateMsg = "";
   if (!inWindow) {
     stateMsg = "";
+  } else if (readOnly) {
+    stateMsg = dayEntry
+      ? (points === MAX_DAILY ? "Perfect day" : "Logged")
+      : "Not logged this day";
   } else if (dayEntry && JSON.stringify(draftAnswers) === JSON.stringify(dayEntry.answers)) {
     stateMsg = points === MAX_DAILY
       ? (isToday ? "Perfect day. Locked in." : "Perfect day · saved")
@@ -385,7 +430,8 @@ function renderStats() {
   $("#stat-day-sub").textContent = daySub;
   $("#day-progress").style.width = `${total > 0 ? clamp((dayNum / total) * 100, 0, 100) : 0}%`;
 
-  const streak = currentStreakFor(state.user.id);
+  const userId = viewedUserId();
+  const streak = currentStreakFor(userId);
   animateNumber($("#stat-streak"), streak);
   const dotsEl = $("#streak-dots");
   dotsEl.innerHTML = "";
@@ -397,34 +443,34 @@ function renderStats() {
   }
 
   const ranking = computeRanking();
-  const myIndex = ranking.findIndex((r) => r.userId === state.user.id);
-  if (myIndex >= 0) {
-    $("#stat-rank").textContent = String(myIndex + 1);
+  const idx = ranking.findIndex((r) => r.userId === userId);
+  if (idx >= 0) {
+    $("#stat-rank").textContent = String(idx + 1);
     if (ranking.length <= 1) {
       $("#stat-rank-sub").textContent = "be the first to log";
-    } else if (myIndex === 0) {
+    } else if (idx === 0) {
       const lead = ranking[0].points - ranking[1].points;
       $("#stat-rank-sub").textContent = lead > 0 ? `+${lead} on 2nd` : `tied at top`;
     } else {
-      const gap = ranking[myIndex - 1].points - ranking[myIndex].points;
+      const gap = ranking[idx - 1].points - ranking[idx].points;
       $("#stat-rank-sub").textContent = gap === 0
-        ? `tied with #${myIndex}`
-        : `${gap} pt${gap === 1 ? "" : "s"} behind #${myIndex}`;
+        ? `tied with #${idx}`
+        : `${gap} pt${gap === 1 ? "" : "s"} behind #${idx}`;
     }
   } else {
     $("#stat-rank").textContent = "–";
-    $("#stat-rank-sub").textContent = "log a day to enter";
+    $("#stat-rank-sub").textContent = "no entries yet";
   }
 
-  const myEntries = state.entries.filter(
-    (e) => e.user_id === state.user.id && isInChallengeWindow(e.date)
+  const userEntries = state.entries.filter(
+    (e) => e.user_id === userId && isInChallengeWindow(e.date)
   );
-  const myPoints = myEntries.reduce((s, e) => s + e.points, 0);
-  animateNumber($("#stat-points"), myPoints);
+  const userPoints = userEntries.reduce((s, e) => s + e.points, 0);
+  animateNumber($("#stat-points"), userPoints);
 
   const maxSoFar = Math.max(dayNum, 0) * MAX_DAILY;
   $("#stat-points-sub").textContent = maxSoFar > 0
-    ? `of ${maxSoFar} possible · ${Math.round((myPoints / maxSoFar) * 100)}%`
+    ? `of ${maxSoFar} possible · ${Math.round((userPoints / maxSoFar) * 100)}%`
     : "challenge starting soon";
 }
 
@@ -432,15 +478,27 @@ function renderCheckin() {
   const today = todayISO();
   const date = state.editingDate || today;
   const isToday = date === today;
+  const readOnly = isReadOnly();
   const inWindow = isInChallengeWindow(date);
   const outEl = $("#checkin-out-of-window");
   const list = $("#checkin-list");
   const saveBtn = $("#save-entry");
   const titleEl = document.querySelector(".bento-checkin h2");
   const backEl = $("#back-to-today");
+  const profile = viewedProfile();
+  const firstName = profile?.display_name?.split(/\s+/)[0] || "";
 
-  if (titleEl) titleEl.textContent = isToday ? "Today's check-in" : `Logging for ${fmtDate(date)}`;
-  if (backEl) backEl.classList.toggle("hidden", isToday);
+  if (titleEl) {
+    if (readOnly) {
+      titleEl.textContent = isToday
+        ? `${firstName}'s today`
+        : `${firstName} on ${fmtDate(date)}`;
+    } else {
+      titleEl.textContent = isToday ? "Today's check-in" : `Logging for ${fmtDate(date)}`;
+    }
+  }
+  if (backEl) backEl.classList.toggle("hidden", isToday || readOnly);
+  list.classList.toggle("readonly", readOnly);
 
   if (!inWindow) {
     const start = state.settings.challenge_start_date;
@@ -455,32 +513,36 @@ function renderCheckin() {
   }
   outEl.classList.add("hidden");
   list.classList.remove("hidden");
-  saveBtn.classList.remove("hidden");
+  saveBtn.classList.toggle("hidden", readOnly);
 
   list.innerHTML = "";
   for (const q of QUESTIONS) {
     const checked = !!state.draft[q.id];
     const isCustom = !!q.custom;
+    const customLabel = profile?.custom_goal?.trim();
     const labelText = isCustom
-      ? (state.profile?.custom_goal?.trim() || "Set a custom goal")
+      ? (customLabel || (readOnly ? "Custom goal (not set)" : "Set a custom goal"))
       : q.text;
     const item = document.createElement("div");
     item.className = "checkin-item" + (checked ? " checked" : "") + (isCustom ? " custom" : "");
     item.dataset.qid = q.id;
-    item.setAttribute("role", "button");
-    item.setAttribute("tabindex", "0");
-    item.setAttribute("aria-pressed", checked ? "true" : "false");
-    const editBtn = isCustom
+    if (!readOnly) {
+      item.setAttribute("role", "button");
+      item.setAttribute("tabindex", "0");
+      item.setAttribute("aria-pressed", checked ? "true" : "false");
+    }
+    const editBtn = (isCustom && !readOnly)
       ? `<button type="button" class="edit-goal" aria-label="Edit custom goal" title="Edit goal">
            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
            </svg>
          </button>`
       : "";
+    const ptsLabel = `+${q.points} pt${q.points === 1 ? "" : "s"}${isCustom ? (readOnly ? " · custom goal" : " · your goal") : ""}`;
     item.innerHTML = `
       <div class="checkin-label">
         <div class="checkin-q">${escapeHtml(labelText)}${editBtn}</div>
-        <div class="checkin-pts">+${q.points} pts${isCustom ? " · your goal" : ""}</div>
+        <div class="checkin-pts">${ptsLabel}</div>
       </div>
       <div class="check-circle" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
@@ -488,23 +550,25 @@ function renderCheckin() {
         </svg>
       </div>
     `;
-    item.addEventListener("click", (e) => {
-      if (e.target.closest(".edit-goal")) return;
-      toggleQuestion(q.id);
-    });
-    item.addEventListener("keydown", (e) => {
-      if (e.key === " " || e.key === "Enter") {
-        e.preventDefault();
+    if (!readOnly) {
+      item.addEventListener("click", (e) => {
+        if (e.target.closest(".edit-goal")) return;
         toggleQuestion(q.id);
-      }
-    });
-    if (isCustom) {
-      item.querySelector(".edit-goal")?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const current = state.profile?.custom_goal || "";
-        const next = window.prompt("Update your custom goal:", current);
-        if (next != null) updateCustomGoal(next);
       });
+      item.addEventListener("keydown", (e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          toggleQuestion(q.id);
+        }
+      });
+      if (isCustom) {
+        item.querySelector(".edit-goal")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const current = state.profile?.custom_goal || "";
+          const next = window.prompt("Update your custom goal:", current);
+          if (next != null) updateCustomGoal(next);
+        });
+      }
     }
     list.appendChild(item);
   }
@@ -540,8 +604,12 @@ function renderLeaderboard() {
   ranking.forEach((row, i) => {
     const rank = i + 1;
     const isYou = row.userId === state.user.id;
+    const isViewed = row.userId === viewedUserId();
     const li = document.createElement("li");
-    if (isYou) li.classList.add("you");
+    li.className = (isYou ? "you " : "") + (isViewed ? "viewed " : "") + "tappable";
+    li.setAttribute("role", "button");
+    li.setAttribute("tabindex", "0");
+    li.setAttribute("aria-label", `View ${row.name}'s profile`);
     li.innerHTML = `
       <div class="rank-badge ${rank <= 3 ? "rank-" + rank : ""}">${rank}</div>
       <div>
@@ -551,6 +619,13 @@ function renderLeaderboard() {
       <div class="lb-points">${row.points}</div>
       <div class="lb-streak">${row.streak ? row.streak + "d" : ""}</div>
     `;
+    li.addEventListener("click", () => setViewingUser(row.userId));
+    li.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        setViewingUser(row.userId);
+      }
+    });
     ul.appendChild(li);
   });
 }
@@ -561,9 +636,10 @@ function renderWeekStrip() {
   const today = todayISO();
   const editing = state.editingDate || today;
   const start = addDays(today, -6);
+  const userId = viewedUserId();
   const myEntries = new Map(
     state.entries
-      .filter((e) => e.user_id === state.user.id)
+      .filter((e) => e.user_id === userId)
       .map((e) => [e.date, e])
   );
   for (let i = 0; i < 7; i++) {

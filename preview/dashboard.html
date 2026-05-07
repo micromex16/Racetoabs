@@ -31,13 +31,17 @@
     </header>
 
     <main class="app-main">
+      <div class="viewing-banner">
+        <span class="viewing-text">Viewing <strong>Jess</strong></span>
+        <button type="button" class="back-link">← Back to my dashboard</button>
+      </div>
       <div class="bento">
 
         <!-- Hero ring: 12 / 18 today (≈67% filled) -->
         <section class="card bento-ring" data-accent="blue">
           <div class="card-head">
-            <span class="eyebrow">Logging</span>
-            <span class="muted small">Mon, May 4</span>
+            <span class="eyebrow">Jess</span>
+            <span class="muted small">Wed, May 6</span>
           </div>
           <div class="ring-wrap">
             <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
@@ -53,19 +57,19 @@
                 </filter>
               </defs>
               <circle class="ring-track" cx="100" cy="100" r="84"/>
-              <!-- circumference = 527.788; offset = 527.788 * (1 - 12/18) ≈ 175.93 -->
+              <!-- circumference = 527.788; offset = 527.788 * (1 - 16/18) ≈ 58.65 -->
               <circle class="ring-fill" cx="100" cy="100" r="84"
                 transform="rotate(-90 100 100)" filter="url(#ring-glow)"
-                style="stroke-dashoffset: 175.93;"/>
+                style="stroke-dashoffset: 58.65;"/>
             </svg>
             <div class="ring-text">
-              <div class="ring-num">12</div>
+              <div class="ring-num">16</div>
               <div class="ring-unit">/ 18 pts</div>
-              <div class="ring-tag">6 of 9 checked</div>
+              <div class="ring-tag">8 of 9 checked</div>
             </div>
           </div>
           <div class="ring-foot">
-            <span class="muted small">Unsaved changes — tap Save</span>
+            <span class="muted small">Logged</span>
           </div>
         </section>
 
@@ -80,7 +84,7 @@
         <!-- Stat: streak -->
         <section class="card bento-stat" data-accent="rose">
           <div class="stat-eyebrow">Streak</div>
-          <div class="stat-big">8<span class="stat-of">d</span></div>
+          <div class="stat-big">12<span class="stat-of">d</span></div>
           <div class="stat-sub">consecutive days</div>
           <div class="dots">
             <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
@@ -91,25 +95,23 @@
         <!-- Stat: rank -->
         <section class="card bento-stat" data-accent="teal">
           <div class="stat-eyebrow">Rank</div>
-          <div class="stat-big">#2</div>
-          <div class="stat-sub">22 pts behind #1</div>
+          <div class="stat-big">#1</div>
+          <div class="stat-sub">+22 on 2nd</div>
         </section>
 
         <!-- Stat: total -->
         <section class="card bento-stat" data-accent="green">
           <div class="stat-eyebrow">Total</div>
-          <div class="stat-big">156</div>
-          <div class="stat-sub">of 216 possible · 72%</div>
+          <div class="stat-big">178</div>
+          <div class="stat-sub">of 216 possible · 82%</div>
         </section>
 
-        <!-- Check-in (editing a past day in this preview) -->
+        <!-- Check-in (read-only: viewing Jess) -->
         <section class="card bento-checkin" data-accent="green">
           <div class="card-head">
-            <h2>Logging for Mon, May 4</h2>
-            <button type="button" class="btn-pill">Save</button>
+            <h2>Jess's today</h2>
           </div>
-          <button type="button" class="back-link">← Back to today</button>
-          <div id="checkin-list">
+          <div id="checkin-list" class="readonly">
             <div class="checkin-item checked">
               <div class="checkin-label">
                 <div class="checkin-q">30 minutes of exercise</div>
@@ -131,7 +133,7 @@
               </div>
               <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
             </div>
-            <div class="checkin-item">
+            <div class="checkin-item checked">
               <div class="checkin-label">
                 <div class="checkin-q">More than 7 hours of sleep</div>
                 <div class="checkin-pts">+2 pts</div>
@@ -152,7 +154,7 @@
               </div>
               <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
             </div>
-            <div class="checkin-item">
+            <div class="checkin-item checked">
               <div class="checkin-label">
                 <div class="checkin-q">No alcohol today</div>
                 <div class="checkin-pts">+2 pts</div>
@@ -168,8 +170,8 @@
             </div>
             <div class="checkin-item checked custom">
               <div class="checkin-label">
-                <div class="checkin-q">Read 30 mins<button type="button" class="edit-goal" aria-label="Edit custom goal" title="Edit goal"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
-                <div class="checkin-pts">+2 pts · your goal</div>
+                <div class="checkin-q">Daily journal</div>
+                <div class="checkin-pts">+2 pts · custom goal</div>
               </div>
               <div class="check-circle"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
             </div>
@@ -183,7 +185,7 @@
             <span class="muted small">4 racers</span>
           </div>
           <ul class="leaderboard">
-            <li>
+            <li class="viewed tappable">
               <div class="rank-badge rank-1">1</div>
               <div>
                 <div class="lb-name">Jess</div>
@@ -192,7 +194,7 @@
               <div class="lb-points">178</div>
               <div class="lb-streak">12d</div>
             </li>
-            <li class="you">
+            <li class="you tappable">
               <div class="rank-badge rank-2">2</div>
               <div>
                 <div class="lb-name">Sarah <span class="muted">· you</span></div>
@@ -201,7 +203,7 @@
               <div class="lb-points">156</div>
               <div class="lb-streak">8d</div>
             </li>
-            <li>
+            <li class="tappable">
               <div class="rank-badge rank-3">3</div>
               <div>
                 <div class="lb-name">Maya</div>
@@ -210,7 +212,7 @@
               <div class="lb-points">142</div>
               <div class="lb-streak">11d</div>
             </li>
-            <li>
+            <li class="tappable">
               <div class="rank-badge">4</div>
               <div>
                 <div class="lb-name">Brooke</div>
@@ -229,13 +231,13 @@
             <span class="muted small">Daily points</span>
           </div>
           <div class="week-strip">
-            <div class="day-cell logged"><div class="day-name">Thu</div><div class="day-num">14</div></div>
-            <div class="day-cell logged"><div class="day-name">Fri</div><div class="day-num">16</div></div>
-            <div class="day-cell logged"><div class="day-name">Sat</div><div class="day-num">10</div></div>
-            <div class="day-cell logged"><div class="day-name">Sun</div><div class="day-num">18</div></div>
-            <div class="day-cell missed selected selectable"><div class="day-name">Mon</div><div class="day-num">0</div></div>
-            <div class="day-cell logged"><div class="day-name">Tue</div><div class="day-num">14</div></div>
-            <div class="day-cell today logged"><div class="day-name">Wed</div><div class="day-num">12</div></div>
+            <div class="day-cell logged selectable"><div class="day-name">Thu</div><div class="day-num">17</div></div>
+            <div class="day-cell logged selectable"><div class="day-name">Fri</div><div class="day-num">18</div></div>
+            <div class="day-cell logged selectable"><div class="day-name">Sat</div><div class="day-num">14</div></div>
+            <div class="day-cell logged selectable"><div class="day-name">Sun</div><div class="day-num">18</div></div>
+            <div class="day-cell logged selectable"><div class="day-name">Mon</div><div class="day-num">15</div></div>
+            <div class="day-cell logged selectable"><div class="day-name">Tue</div><div class="day-num">16</div></div>
+            <div class="day-cell today logged selected selectable"><div class="day-name">Wed</div><div class="day-num">16</div></div>
           </div>
         </section>
 

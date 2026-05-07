@@ -338,6 +338,27 @@ button.link:hover { color: var(--teal-1); }
   margin: 0 auto;
   padding: 0 max(1rem, env(safe-area-inset-right)) 2rem max(1rem, env(safe-area-inset-left));
 }
+
+.viewing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.10), rgba(16, 185, 129, 0.06));
+  border: 1px solid rgba(59, 130, 246, 0.30);
+  margin-bottom: 14px;
+}
+.viewing-text { font-size: 0.92rem; color: var(--text-2); }
+.viewing-text strong {
+  background: var(--grad-blue);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 800;
+}
 .app-footer {
   padding: 2rem 1rem max(2rem, env(safe-area-inset-bottom));
   text-align: center;
@@ -691,6 +712,18 @@ button.link:hover { color: var(--teal-1); }
 }
 .checkin-item.checked .check-circle svg { opacity: 1; transform: scale(1); }
 
+#checkin-list.readonly .checkin-item {
+  cursor: default;
+}
+#checkin-list.readonly .checkin-item:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+#checkin-list.readonly .checkin-item.checked:hover {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.12), rgba(34, 197, 94, 0.04));
+}
+#checkin-list.readonly .checkin-item:active { transform: none; }
+
 .entry-status {
   margin: 0.4rem 0 0;
   min-height: 1em;
@@ -732,9 +765,15 @@ button.link:hover { color: var(--teal-1); }
   transition: background 0.15s ease;
 }
 .leaderboard li:hover { background: var(--surface-3); }
+.leaderboard li.tappable { cursor: pointer; }
+.leaderboard li.tappable:active { transform: scale(0.997); }
 .leaderboard li.you {
   background: linear-gradient(90deg, rgba(59, 130, 246, 0.10), rgba(16, 185, 129, 0.06) 70%, transparent);
   border: 1px solid rgba(59, 130, 246, 0.25);
+}
+.leaderboard li.viewed {
+  outline: 2px solid var(--blue-1);
+  outline-offset: -1px;
 }
 
 .rank-badge {
