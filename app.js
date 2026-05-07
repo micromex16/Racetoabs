@@ -23,7 +23,8 @@ const state = {
   settings: null,         // { challenge_start_date, challenge_days }
   entries: [],            // all entries from all users
   profiles: [],           // all profiles
-  draft: {},              // { questionId: true } for today's edits
+  draft: {},              // { questionId: true } for the currently-edited day
+  editingDate: null,      // ISO date the check-in form is editing (defaults to today)
   saving: false,
 };
 
@@ -47,6 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#profile-form")?.addEventListener("submit", handleCreateProfile);
   $("#signout-btn")?.addEventListener("click", handleSignOut);
   $("#save-entry")?.addEventListener("click", handleSaveEntry);
+  $("#back-to-today")?.addEventListener("click", () => setEditingDate(todayISO()));
 
   // Boot
   bootstrap();
@@ -112,10 +114,25 @@ async function loadAllData() {
   state.profiles = profiles || [];
   state.entries = entries || [];
 
-  // Seed today's draft from existing entry, if any
-  const today = todayISO();
-  const mine = state.entries.find((e) => e.user_id === state.user.id && e.date === today);
+  // Default the editing date to today, then seed the draft from any existing
+  // entry for that day.
+  if (!state.editingDate) state.editingDate = todayISO();
+  reseedDraftFromEditingDate();
+}
+
+function reseedDraftFromEditingDate() {
+  const mine = state.entries.find(
+    (e) => e.user_id === state.user.id && e.date === state.editingDate
+  );
   state.draft = mine ? { ...mine.answers } : {};
+}
+
+function setEditingDate(iso) {
+  if (!isInChallengeWindow(iso)) return;
+  if (iso > todayISO()) return; // no editing the future
+  state.editingDate = iso;
+  reseedDraftFromEditingDate();
+  renderApp();
 }
 
 // ─── Auth handlers ────────────────────────────────────────────────────────
@@ -215,9 +232,9 @@ async function updateCustomGoal(newGoal) {
 // ─── Entry handlers ───────────────────────────────────────────────────────
 async function handleSaveEntry() {
   if (state.saving) return;
-  const today = todayISO();
-  if (!isInChallengeWindow(today)) {
-    flashStatus("Challenge isn't active today.");
+  const date = state.editingDate || todayISO();
+  if (!isInChallengeWindow(date)) {
+    flashStatus("That day is outside the challenge window.");
     return;
   }
   state.saving = true;
@@ -231,7 +248,7 @@ async function handleSaveEntry() {
 
   const row = {
     user_id: state.user.id,
-    date: today,
+    date,
     answers,
     points,
   };
@@ -247,7 +264,8 @@ async function handleSaveEntry() {
     flashStatus("Couldn't save: " + error.message);
     return;
   }
-  flashStatus(`Saved. +${points} pts today.`);
+  const dayLabel = date === todayISO() ? "today" : fmtDate(date);
+  flashStatus(`Saved. +${points} pts for ${dayLabel}.`);
   await loadAllData();
   renderApp();
 }
@@ -295,12 +313,17 @@ function animateNumber(el, target, opts = {}) {
 
 function renderRing() {
   const today = todayISO();
-  $("#ring-date").textContent = fmtDate(today);
+  const date = state.editingDate || today;
+  const isToday = date === today;
+  $("#ring-date").textContent = fmtDate(date);
   $("#ring-max").textContent = String(MAX_DAILY);
 
-  const inWindow = isInChallengeWindow(today);
-  const todayEntry = state.entries.find(
-    (e) => e.user_id === state.user.id && e.date === today
+  const eyebrow = document.querySelector(".bento-ring .eyebrow");
+  if (eyebrow) eyebrow.textContent = isToday ? "Today" : "Logging";
+
+  const inWindow = isInChallengeWindow(date);
+  const dayEntry = state.entries.find(
+    (e) => e.user_id === state.user.id && e.date === date
   );
   const draftAnswers = {};
   for (const q of QUESTIONS) draftAnswers[q.id] = !!state.draft[q.id];
@@ -316,18 +339,20 @@ function renderRing() {
   const checkedCount = QUESTIONS.filter((q) => draftAnswers[q.id]).length;
   const tag = inWindow
     ? `${checkedCount} of ${QUESTIONS.length} checked`
-    : (today < state.settings.challenge_start_date ? "challenge hasn't started" : "challenge ended");
+    : (date < state.settings.challenge_start_date ? "before challenge" : "after challenge");
   $("#ring-tag").textContent = tag;
 
   let stateMsg = "";
   if (!inWindow) {
     stateMsg = "";
-  } else if (todayEntry && JSON.stringify(draftAnswers) === JSON.stringify(todayEntry.answers)) {
-    stateMsg = points === MAX_DAILY ? "Perfect day. Locked in." : "Saved for today";
-  } else if (todayEntry) {
+  } else if (dayEntry && JSON.stringify(draftAnswers) === JSON.stringify(dayEntry.answers)) {
+    stateMsg = points === MAX_DAILY
+      ? (isToday ? "Perfect day. Locked in." : "Perfect day · saved")
+      : (isToday ? "Saved for today" : "Saved");
+  } else if (dayEntry) {
     stateMsg = "Unsaved changes — tap Save";
   } else if (checkedCount > 0) {
-    stateMsg = "Tap Save to log today";
+    stateMsg = isToday ? "Tap Save to log today" : "Tap Save to log this day";
   } else {
     stateMsg = "Tap an item below to start";
   }
@@ -405,14 +430,21 @@ function renderStats() {
 
 function renderCheckin() {
   const today = todayISO();
-  const inWindow = isInChallengeWindow(today);
+  const date = state.editingDate || today;
+  const isToday = date === today;
+  const inWindow = isInChallengeWindow(date);
   const outEl = $("#checkin-out-of-window");
   const list = $("#checkin-list");
   const saveBtn = $("#save-entry");
+  const titleEl = document.querySelector(".bento-checkin h2");
+  const backEl = $("#back-to-today");
+
+  if (titleEl) titleEl.textContent = isToday ? "Today's check-in" : `Logging for ${fmtDate(date)}`;
+  if (backEl) backEl.classList.toggle("hidden", isToday);
 
   if (!inWindow) {
     const start = state.settings.challenge_start_date;
-    const before = today < start;
+    const before = date < start;
     outEl.classList.remove("hidden");
     outEl.textContent = before
       ? `Challenge starts ${fmtDate(start)}. Hang tight.`
@@ -527,6 +559,7 @@ function renderWeekStrip() {
   const strip = $("#week-strip");
   strip.innerHTML = "";
   const today = todayISO();
+  const editing = state.editingDate || today;
   const start = addDays(today, -6);
   const myEntries = new Map(
     state.entries
@@ -537,23 +570,42 @@ function renderWeekStrip() {
     const iso = addDays(start, i);
     const d = new Date(iso + "T00:00:00");
     const entry = myEntries.get(iso);
+    const inWindow = isInChallengeWindow(iso);
+    const isFuture = iso > today;
+    const selectable = inWindow && !isFuture;
+
     const cell = document.createElement("div");
     cell.className = "day-cell";
     if (iso === today) cell.classList.add("today");
     if (entry) cell.classList.add("logged");
-    else if (iso < today && isInChallengeWindow(iso)) cell.classList.add("missed");
-    else if (!isInChallengeWindow(iso)) cell.classList.add("future");
+    else if (iso < today && inWindow) cell.classList.add("missed");
+    else if (!inWindow) cell.classList.add("future");
+    if (iso === editing) cell.classList.add("selected");
+    if (selectable) cell.classList.add("selectable");
+
     const numDisplay = entry
       ? entry.points
       : iso === today
         ? "–"
-        : isInChallengeWindow(iso)
+        : inWindow
           ? "0"
           : "·";
     cell.innerHTML = `
       <div class="day-name">${d.toLocaleDateString(undefined, { weekday: "short" })}</div>
       <div class="day-num">${numDisplay}</div>
     `;
+    if (selectable) {
+      cell.setAttribute("role", "button");
+      cell.setAttribute("tabindex", "0");
+      cell.setAttribute("aria-label", `Edit ${fmtDate(iso)}`);
+      cell.addEventListener("click", () => setEditingDate(iso));
+      cell.addEventListener("keydown", (e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          setEditingDate(iso);
+        }
+      });
+    }
     strip.appendChild(cell);
   }
 }
