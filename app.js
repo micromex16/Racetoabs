@@ -41,6 +41,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Wire up events that exist regardless of view
   $("#signin-form")?.addEventListener("submit", handleSignIn);
+  $("#auth-toggle-btn")?.addEventListener("click", () => {
+    setAuthMode(authMode === "signin" ? "signup" : "signin");
+  });
   $("#profile-form")?.addEventListener("submit", handleCreateProfile);
   $("#signout-btn")?.addEventListener("click", handleSignOut);
   $("#save-entry")?.addEventListener("click", handleSaveEntry);
@@ -116,21 +119,54 @@ async function loadAllData() {
 }
 
 // ─── Auth handlers ────────────────────────────────────────────────────────
+let authMode = "signin"; // "signin" | "signup"
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const isSignup = mode === "signup";
+  $("#auth-title").textContent      = isSignup ? "Create account" : "Sign in";
+  $("#auth-sub").textContent        = isSignup
+    ? "Pick a password. No email confirmation, you're in immediately."
+    : "Welcome back. Enter your email and password.";
+  $("#auth-submit").textContent     = isSignup ? "Create account" : "Sign in";
+  $("#auth-toggle-text").textContent = isSignup ? "Already have an account?" : "First time?";
+  $("#auth-toggle-btn").textContent  = isSignup ? "Sign in instead" : "Create an account";
+  $("#password").setAttribute("autocomplete", isSignup ? "new-password" : "current-password");
+  $("#signin-status").textContent = "";
+}
+
 async function handleSignIn(e) {
   e.preventDefault();
   const email = $("#email").value.trim();
-  if (!email) return;
+  const password = $("#password").value;
+  if (!email || !password) return;
   const status = $("#signin-status");
-  status.textContent = "Sending…";
-  const { error } = await state.client.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin + window.location.pathname },
-  });
+  const submit = $("#auth-submit");
+  submit.disabled = true;
+  status.textContent = authMode === "signup" ? "Creating account…" : "Signing in…";
+
+  const fn = authMode === "signup" ? "signUp" : "signInWithPassword";
+  const { data, error } = await state.client.auth[fn]({ email, password });
+  submit.disabled = false;
+
   if (error) {
-    status.textContent = "Couldn't send link: " + error.message;
+    if (authMode === "signin" && /invalid login/i.test(error.message)) {
+      status.textContent = "Email and password don't match. New here? Tap 'Create an account'.";
+    } else if (authMode === "signup" && /already registered|already.*exists/i.test(error.message)) {
+      status.textContent = "That email's already in. Switch to Sign in.";
+    } else {
+      status.textContent = error.message;
+    }
     return;
   }
-  status.textContent = "Check your email for a sign-in link.";
+
+  // If sign-up requires confirmation (because the toggle wasn't disabled in
+  // Supabase), `data.session` is null. Tell the user.
+  if (authMode === "signup" && !data?.session) {
+    status.textContent = "Check your inbox to confirm your email, then come back.";
+    return;
+  }
+  // applySession runs via onAuthStateChange and switches the view.
 }
 
 async function handleSignOut() {

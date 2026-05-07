@@ -85,8 +85,13 @@ To rebalance, edit the `QUESTIONS` array at the top of `app.js`.
 ## How users join
 
 1. Visit the site on their iPhone.
-2. Enter their email → click the magic link from the inbox.
-3. Pick a display name. That's it — they're in.
+2. Tap **Create an account** → enter email + password → tap **Create account**. They're signed in immediately (no email confirmation).
+3. Pick a display name + their custom goal. That's it — they're in.
+
+> **Supabase setup tip:** disable email confirmation under
+> **Authentication → Providers → Email → "Confirm email"** so new users
+> don't get a "check your email" speed bump. With it off, sign-ups
+> create a session right away.
 
 ### Installing on iPhone (Add to Home Screen)
 

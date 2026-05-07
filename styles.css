@@ -281,6 +281,27 @@ input::placeholder { color: var(--muted-2); }
 }
 .btn-ghost:hover { background: var(--surface-3); border-color: var(--border-2); }
 
+button.link {
+  background: transparent;
+  border: none;
+  color: var(--blue-1);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+button.link:hover { color: var(--teal-1); }
+
+.auth-toggle {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0.75rem 0 0;
+}
+
 .btn-pill {
   background: var(--grad-blue);
   color: #ffffff;

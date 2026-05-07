@@ -15,13 +15,21 @@
     </div>
     <div class="card narrow">
       <h2>Sign in</h2>
-      <p class="muted">We'll email you a one-tap login link.</p>
+      <p class="muted">Welcome back. Enter your email and password.</p>
       <form>
         <div class="field">
           <label for="email">Email</label>
           <input type="email" id="email" placeholder="you@email.com" value="sarah@example.com" />
         </div>
-        <button type="button" class="btn-primary">Send magic link</button>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="At least 6 characters" value="password123" />
+        </div>
+        <button type="button" class="btn-primary">Sign in</button>
+        <p class="auth-toggle muted small">
+          <span>First time?</span>
+          <button type="button" class="link">Create an account</button>
+        </p>
       </form>
     </div>
   </div>

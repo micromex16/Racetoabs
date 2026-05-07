@@ -46,14 +46,22 @@
       <p class="tagline">30 days. Daily check-ins. May the best discipline win.</p>
     </div>
     <div class="card narrow">
-      <h2>Sign in</h2>
-      <p class="muted">We'll email you a one-tap login link.</p>
+      <h2 id="auth-title">Sign in</h2>
+      <p class="muted" id="auth-sub">Welcome back. Enter your email and password.</p>
       <form id="signin-form">
         <div class="field">
           <label for="email">Email</label>
           <input type="email" id="email" name="email" autocomplete="email" required placeholder="you@email.com" />
         </div>
-        <button type="submit" class="btn-primary">Send magic link</button>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" minlength="6" required placeholder="At least 6 characters" />
+        </div>
+        <button type="submit" class="btn-primary" id="auth-submit">Sign in</button>
+        <p class="auth-toggle muted small">
+          <span id="auth-toggle-text">First time?</span>
+          <button type="button" id="auth-toggle-btn" class="link">Create an account</button>
+        </p>
         <p id="signin-status" class="muted"></p>
       </form>
     </div>
