@@ -862,12 +862,17 @@ async function compressImage(file, maxDim = 1600, quality = 0.85) {
 
 async function uploadChatImage(file) {
   const blob = await compressImage(file);
-  const path = `${state.user.id}/${cryptoId()}.jpg`;
+  const path = `${state.user.id}/${randomId()}.jpg`;
   const { error } = await state.client.storage
     .from("chat-images")
     .upload(path, blob, { contentType: "image/jpeg", cacheControl: "3600", upsert: false });
   if (error) throw error;
   return path;
+}
+
+function randomId() {
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 function handlePickChatImage(e) {
