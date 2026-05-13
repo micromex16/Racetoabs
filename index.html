@@ -203,6 +203,30 @@
           <div id="week-strip" class="week-strip"></div>
         </section>
 
+        <!-- Group chat -->
+        <section class="card bento-chat" data-accent="rose">
+          <div class="card-head">
+            <h2>Group chat</h2>
+            <span class="muted small">cheer · vent · show off</span>
+          </div>
+          <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+          <div class="chat-composer">
+            <label class="chat-image-btn" aria-label="Add photo" title="Add photo">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <input type="file" id="chat-image" accept="image/*" hidden />
+            </label>
+            <div id="chat-preview" class="chat-preview hidden">
+              <img id="chat-preview-img" alt="" />
+              <button type="button" id="chat-preview-remove" aria-label="Remove photo">×</button>
+            </div>
+            <input type="text" id="chat-input" placeholder="Say something…" autocomplete="off" />
+            <button type="button" id="chat-send" class="btn-pill">Send</button>
+          </div>
+        </section>
+
       </div>
     </main>
 

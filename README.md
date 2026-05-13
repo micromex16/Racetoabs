@@ -1,13 +1,16 @@
 # Race to Abs
 
-A 30-day accountability challenge. Sign in, tick off your daily check-ins, watch the leaderboard. No weight, no measurements, no photos — just points and streaks.
+A 30-day accountability challenge. Sign in, tick off your daily check-ins, watch the leaderboard. No weight, no measurements, no body photos — just points, streaks, and a group chat.
 
 ## What it does
 
-- **Daily check-in** — 8 yes/no items, max 18 pts/day, 540 pts over 30 days
+- **Daily check-in** — 9 yes/no items including a custom goal each user sets; max 18 pts/day, 540 pts over 30 days
 - **Shared start date** — everyone races the same calendar window
 - **Live leaderboard** — sorted by total challenge points
+- **Tap any name** on the leaderboard to view that user's daily logs read-only
+- **Back-fill past days** by tapping a day in the "Last 7 days" strip
 - **Streaks** — consecutive logged days
+- **Group chat** with image upload and realtime updates so everyone can cheer, vent, and show off
 - **Cross-device** — log from phone or laptop, all synced
 
 ## Setup (one time, ~5 min)

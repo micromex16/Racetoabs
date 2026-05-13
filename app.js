@@ -27,7 +27,13 @@ const state = {
   editingDate: null,      // ISO date being shown / edited (defaults to today)
   viewingUserId: null,    // if set, we're looking at someone else's profile read-only
   saving: false,
+  messages: [],           // all chat messages, oldest first
+  messagesChannel: null,  // supabase realtime channel
+  pendingImage: null,     // File selected for upload but not yet sent
+  sending: false,
 };
+
+const signedUrlCache = new Map(); // path → { url, expiresAt }
 
 function viewedUserId() {
   return state.viewingUserId || state.user?.id;
@@ -64,6 +70,12 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#save-entry")?.addEventListener("click", handleSaveEntry);
   $("#back-to-today")?.addEventListener("click", () => setEditingDate(todayISO()));
   $("#viewing-back")?.addEventListener("click", () => setViewingUser(state.user.id));
+  $("#chat-send")?.addEventListener("click", handleSendChat);
+  $("#chat-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); }
+  });
+  $("#chat-image")?.addEventListener("change", handlePickChatImage);
+  $("#chat-preview-remove")?.addEventListener("click", clearPendingImage);
 
   // Boot
   bootstrap();
@@ -95,7 +107,8 @@ async function applySession(session) {
     return;
   }
 
-  await Promise.all([loadSettings(), loadAllData()]);
+  await Promise.all([loadSettings(), loadAllData(), loadMessages()]);
+  subscribeMessages();
   renderApp();
   show("view-app");
 }
@@ -210,11 +223,19 @@ async function handleSignIn(e) {
 }
 
 async function handleSignOut() {
+  if (state.messagesChannel) {
+    try { await state.client.removeChannel(state.messagesChannel); } catch {}
+    state.messagesChannel = null;
+  }
   await state.client.auth.signOut();
   state.profile = null;
   state.entries = [];
   state.profiles = [];
   state.draft = {};
+  state.messages = [];
+  state.viewingUserId = null;
+  state.editingDate = null;
+  signedUrlCache.clear();
 }
 
 async function handleCreateProfile(e) {
@@ -311,6 +332,7 @@ function renderApp() {
   renderCheckin();
   renderLeaderboard();
   renderWeekStrip();
+  renderChat({ keepScroll: true });
 }
 
 function renderViewingBanner() {
@@ -763,6 +785,249 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────
+async function loadMessages() {
+  const { data, error } = await state.client
+    .from("messages")
+    .select("id, user_id, body, image_path, created_at")
+    .order("created_at", { ascending: true })
+    .limit(200);
+  if (error) { console.error(error); return; }
+  state.messages = data || [];
+  await refreshSignedUrls(state.messages);
+}
+
+function subscribeMessages() {
+  if (state.messagesChannel) return;
+  state.messagesChannel = state.client
+    .channel("messages-feed")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages" },
+      async (payload) => {
+        const m = payload.new;
+        if (!state.messages.find((x) => x.id === m.id)) state.messages.push(m);
+        if (m.image_path) await getSignedUrl(m.image_path);
+        renderChat({ keepScroll: false });
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "messages" },
+      (payload) => {
+        const id = payload.old?.id;
+        if (!id) return;
+        state.messages = state.messages.filter((m) => m.id !== id);
+        renderChat({ keepScroll: true });
+      }
+    )
+    .subscribe();
+}
+
+async function getSignedUrl(path) {
+  if (!path) return null;
+  const cached = signedUrlCache.get(path);
+  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.url;
+  const { data, error } = await state.client.storage
+    .from("chat-images")
+    .createSignedUrl(path, 60 * 60);
+  if (error || !data?.signedUrl) return null;
+  signedUrlCache.set(path, {
+    url: data.signedUrl,
+    expiresAt: Date.now() + 60 * 60 * 1000,
+  });
+  return data.signedUrl;
+}
+
+async function refreshSignedUrls(messages) {
+  const paths = [...new Set(messages.filter((m) => m.image_path).map((m) => m.image_path))];
+  await Promise.all(paths.map(getSignedUrl));
+}
+
+async function compressImage(file, maxDim = 1600, quality = 0.85) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+  return new Promise((resolve) =>
+    canvas.toBlob((b) => resolve(b), "image/jpeg", quality)
+  );
+}
+
+async function uploadChatImage(file) {
+  const blob = await compressImage(file);
+  const path = `${state.user.id}/${cryptoId()}.jpg`;
+  const { error } = await state.client.storage
+    .from("chat-images")
+    .upload(path, blob, { contentType: "image/jpeg", cacheControl: "3600", upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+function handlePickChatImage(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  state.pendingImage = file;
+  const url = URL.createObjectURL(file);
+  $("#chat-preview-img").src = url;
+  $("#chat-preview").classList.remove("hidden");
+}
+
+function clearPendingImage() {
+  if (state.pendingImage && $("#chat-preview-img").src.startsWith("blob:")) {
+    try { URL.revokeObjectURL($("#chat-preview-img").src); } catch {}
+  }
+  state.pendingImage = null;
+  $("#chat-image").value = "";
+  $("#chat-preview").classList.add("hidden");
+  $("#chat-preview-img").removeAttribute("src");
+}
+
+async function handleSendChat() {
+  if (state.sending) return;
+  const input = $("#chat-input");
+  const body = input.value.trim();
+  const hasImage = !!state.pendingImage;
+  if (!body && !hasImage) return;
+
+  state.sending = true;
+  const sendBtn = $("#chat-send");
+  sendBtn.disabled = true;
+  sendBtn.textContent = "Sending…";
+
+  try {
+    let imagePath = null;
+    if (hasImage) imagePath = await uploadChatImage(state.pendingImage);
+    const { error } = await state.client.from("messages").insert({
+      user_id: state.user.id,
+      body: body || null,
+      image_path: imagePath,
+    });
+    if (error) throw error;
+    input.value = "";
+    clearPendingImage();
+  } catch (err) {
+    console.error(err);
+    alert("Couldn't send: " + (err.message || err));
+  } finally {
+    state.sending = false;
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send";
+  }
+}
+
+function senderName(userId) {
+  if (userId === state.user.id) return "You";
+  const p = state.profiles.find((x) => x.id === userId);
+  return p?.display_name || "Someone";
+}
+
+function avatarColor(userId) {
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) | 0;
+  return `hsl(${Math.abs(h) % 360}, 60%, 62%)`;
+}
+
+function avatarLetter(userId) {
+  const name = userId === state.user.id
+    ? state.profile?.display_name
+    : state.profiles.find((p) => p.id === userId)?.display_name;
+  return (name || "?").trim().charAt(0).toUpperCase();
+}
+
+function fmtChatTime(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function renderChat({ keepScroll = false } = {}) {
+  const list = $("#chat-messages");
+  if (!list) return;
+  const wasAtBottom =
+    list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+
+  list.innerHTML = "";
+  if (state.messages.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "chat-empty muted";
+    empty.textContent = "No messages yet. Be the first to say something.";
+    list.appendChild(empty);
+    return;
+  }
+
+  for (const m of state.messages) {
+    const isMine = m.user_id === state.user.id;
+    const row = document.createElement("div");
+    row.className = "chat-msg" + (isMine ? " mine" : "");
+
+    const avatar = document.createElement("div");
+    avatar.className = "chat-avatar";
+    avatar.style.background = avatarColor(m.user_id);
+    avatar.textContent = avatarLetter(m.user_id);
+
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble";
+
+    const meta = document.createElement("div");
+    meta.className = "chat-meta";
+    meta.innerHTML = `<span class="chat-author">${escapeHtml(senderName(m.user_id))}</span> <span class="chat-time">${fmtChatTime(m.created_at)}</span>`;
+    bubble.appendChild(meta);
+
+    if (m.image_path) {
+      const url = signedUrlCache.get(m.image_path)?.url;
+      const img = document.createElement("img");
+      img.className = "chat-img";
+      img.alt = "Shared photo";
+      img.loading = "lazy";
+      if (url) img.src = url;
+      else getSignedUrl(m.image_path).then((u) => { if (u) img.src = u; });
+      bubble.appendChild(img);
+    }
+
+    if (m.body) {
+      const body = document.createElement("div");
+      body.className = "chat-body";
+      body.textContent = m.body;
+      bubble.appendChild(body);
+    }
+
+    if (isMine) {
+      const del = document.createElement("button");
+      del.className = "chat-delete";
+      del.type = "button";
+      del.title = "Delete";
+      del.setAttribute("aria-label", "Delete message");
+      del.textContent = "×";
+      del.addEventListener("click", () => deleteMessage(m.id));
+      bubble.appendChild(del);
+    }
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    list.appendChild(row);
+  }
+
+  if (!keepScroll || wasAtBottom) {
+    list.scrollTop = list.scrollHeight;
+  }
+}
+
+async function deleteMessage(id) {
+  if (!confirm("Delete this message?")) return;
+  const { error } = await state.client.from("messages").delete().eq("id", id);
+  if (error) { alert("Couldn't delete: " + error.message); return; }
+  state.messages = state.messages.filter((m) => m.id !== id);
+  renderChat({ keepScroll: true });
 }
 
 // ─── View switching ───────────────────────────────────────────────────────

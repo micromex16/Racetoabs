@@ -100,3 +100,68 @@ create policy "entries update own" on public.entries
 drop policy if exists "entries delete own" on public.entries;
 create policy "entries delete own" on public.entries
   for delete to authenticated using (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Messages: group chat / message board. Any authenticated user can read every
+-- message; each user can only insert / delete their own.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  body text,
+  image_path text,
+  created_at timestamptz not null default now(),
+  constraint messages_body_or_image check (
+    (body is not null and length(trim(body)) > 0) or image_path is not null
+  )
+);
+
+create index if not exists messages_created_at_idx on public.messages(created_at desc);
+
+alter table public.messages enable row level security;
+
+drop policy if exists "messages read" on public.messages;
+create policy "messages read" on public.messages
+  for select to authenticated using (true);
+
+drop policy if exists "messages insert own" on public.messages;
+create policy "messages insert own" on public.messages
+  for insert to authenticated with check (auth.uid() = user_id);
+
+drop policy if exists "messages delete own" on public.messages;
+create policy "messages delete own" on public.messages
+  for delete to authenticated using (auth.uid() = user_id);
+
+-- Realtime: stream new messages to subscribed clients.
+do $do$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end $do$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Chat images: private storage bucket. Uploads must be inside a folder named
+-- after the user's auth.uid() so we can enforce ownership via storage RLS.
+-- ─────────────────────────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public)
+  values ('chat-images', 'chat-images', false)
+  on conflict (id) do nothing;
+
+drop policy if exists "chat_images_read_auth" on storage.objects;
+create policy "chat_images_read_auth" on storage.objects
+  for select to authenticated using (bucket_id = 'chat-images');
+
+drop policy if exists "chat_images_insert_own" on storage.objects;
+create policy "chat_images_insert_own" on storage.objects
+  for insert to authenticated with check (
+    bucket_id = 'chat-images' and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "chat_images_delete_own" on storage.objects;
+create policy "chat_images_delete_own" on storage.objects
+  for delete to authenticated using (
+    bucket_id = 'chat-images' and (storage.foldername(name))[1] = auth.uid()::text
+  );
