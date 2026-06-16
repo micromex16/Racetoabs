@@ -1285,13 +1285,25 @@ async function handleCreateChallenge(e) {
   const status = $("#nc-status");
   if (!name || !date || !days) return;
   status.textContent = "Creating…";
-  const { data, error } = await state.client.rpc("create_challenge", {
-    p_name: name, p_start_date: date, p_days: days,
-  });
-  if (error) { status.textContent = "Couldn't create: " + error.message; return; }
+
+  // Direct table inserts (no RPC, avoids schema-cache issues).
+  const { data: ch, error: insErr } = await state.client
+    .from("challenges")
+    .insert({ name, start_date: date, days, created_by: state.user.id })
+    .select("id")
+    .single();
+  if (insErr) { status.textContent = "Couldn't create: " + insErr.message; return; }
+
+  const { error: memErr } = await state.client
+    .from("challenge_members")
+    .insert({ challenge_id: ch.id, user_id: state.user.id });
+  if (memErr && !/duplicate/i.test(memErr.message)) {
+    status.textContent = "Couldn't join own challenge: " + memErr.message; return;
+  }
+
   closeModal();
   await loadChallenges();
-  await setActiveChallenge(data);
+  await setActiveChallenge(ch.id);
   show("view-app");
 }
 
@@ -1301,16 +1313,25 @@ async function handleJoinChallenge(e) {
   const status = $("#jc-status");
   if (!code) return;
   status.textContent = "Joining…";
-  const { data, error } = await state.client.rpc("join_challenge", { p_code: code });
-  if (error) {
-    status.textContent = /no challenge/i.test(error.message)
-      ? "No challenge with that code."
-      : ("Couldn't join: " + error.message);
-    return;
+
+  const { data: ch, error: selErr } = await state.client
+    .from("challenges")
+    .select("id")
+    .eq("invite_code", code)
+    .maybeSingle();
+  if (selErr) { status.textContent = "Couldn't look up code: " + selErr.message; return; }
+  if (!ch) { status.textContent = "No challenge with that code."; return; }
+
+  const { error: memErr } = await state.client
+    .from("challenge_members")
+    .insert({ challenge_id: ch.id, user_id: state.user.id });
+  if (memErr && !/duplicate/i.test(memErr.message)) {
+    status.textContent = "Couldn't join: " + memErr.message; return;
   }
+
   closeModal();
   await loadChallenges();
-  await setActiveChallenge(data);
+  await setActiveChallenge(ch.id);
   show("view-app");
 }
 
@@ -1330,14 +1351,22 @@ async function maybeAutoJoinFromUrl() {
   if (!code) return;
   url.searchParams.delete("join");
   history.replaceState({}, "", url.toString());
-  try {
-    const { data, error } = await state.client.rpc("join_challenge", { p_code: code });
-    if (error) { alert("Couldn't join: " + error.message); return; }
-    await loadChallenges();
-    if (data) await setActiveChallenge(data);
-  } catch (err) {
-    console.error(err);
+
+  const { data: ch } = await state.client
+    .from("challenges")
+    .select("id")
+    .eq("invite_code", code.toUpperCase())
+    .maybeSingle();
+  if (!ch) { alert("That invite code doesn't match any challenge."); return; }
+
+  const { error: memErr } = await state.client
+    .from("challenge_members")
+    .insert({ challenge_id: ch.id, user_id: state.user.id });
+  if (memErr && !/duplicate/i.test(memErr.message)) {
+    console.error(memErr); return;
   }
+  await loadChallenges();
+  if (ch.id) await setActiveChallenge(ch.id);
 }
 
 // ─── View switching ───────────────────────────────────────────────────────

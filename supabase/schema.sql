@@ -243,23 +243,31 @@ grant execute on function public.is_challenge_member(uuid) to authenticated;
 alter table public.challenges        enable row level security;
 alter table public.challenge_members enable row level security;
 
+-- Any authenticated user can read challenges (so they can look up by invite
+-- code). The actual sensitive data — entries and messages — stays scoped to
+-- members via is_challenge_member().
 drop policy if exists "challenges read members"      on public.challenges;
+drop policy if exists "challenges read all auth"     on public.challenges;
+drop policy if exists "challenges insert own"        on public.challenges;
 drop policy if exists "challenges update by creator" on public.challenges;
-create policy "challenges read members" on public.challenges
-  for select to authenticated using (is_challenge_member(id));
+create policy "challenges read all auth" on public.challenges
+  for select to authenticated using (true);
+create policy "challenges insert own" on public.challenges
+  for insert to authenticated with check (created_by = auth.uid());
 create policy "challenges update by creator" on public.challenges
   for update to authenticated using (created_by = auth.uid()) with check (created_by = auth.uid());
 
-drop policy if exists "members read peers"  on public.challenge_members;
-drop policy if exists "members delete self" on public.challenge_members;
+drop policy if exists "members read peers"   on public.challenge_members;
+drop policy if exists "members insert self"  on public.challenge_members;
+drop policy if exists "members delete self"  on public.challenge_members;
 create policy "members read peers" on public.challenge_members
   for select to authenticated using (is_challenge_member(challenge_id));
+create policy "members insert self" on public.challenge_members
+  for insert to authenticated with check (user_id = auth.uid());
 create policy "members delete self" on public.challenge_members
   for delete to authenticated using (user_id = auth.uid());
 
--- Direct INSERT into challenge_members is intentionally not granted to clients;
--- joining must go through join_challenge() so the invite code is enforced.
-revoke insert on public.challenge_members from authenticated;
+grant insert on public.challenge_members to authenticated;
 
 -- Re-scope entries + messages so callers only see challenges they're in.
 drop policy if exists "entries read"        on public.entries;
