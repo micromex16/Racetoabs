@@ -22,17 +22,22 @@
 <body>
   <div id="view-app" class="view">
     <header class="app-header">
-      <div class="brand-mark small">
-        <div class="logo-ring small"><span>RA</span></div>
-        <span class="brand-name small">Race to Abs</span>
-      </div>
-      <button class="challenge-pill" type="button">
-        <span>Round 1</span>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      <button type="button" class="icon-btn" aria-label="Menu">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
       </button>
-      <div class="header-right">
-        <button type="button" class="btn-ghost">Sign out</button>
+      <div class="header-title">
+        <div class="header-challenge">Round 1</div>
+        <div class="header-sub muted small">Day 12 of 30</div>
       </div>
+      <button type="button" class="icon-btn" aria-label="Switch challenge">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
     </header>
 
     <main class="app-main">

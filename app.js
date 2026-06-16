@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthMode(authMode === "signin" ? "signup" : "signin");
   });
   $("#profile-form")?.addEventListener("submit", handleCreateProfile);
-  $("#signout-btn")?.addEventListener("click", handleSignOut);
+  $("#menu-btn")?.addEventListener("click", openMenu);
   $("#save-entry")?.addEventListener("click", handleSaveEntry);
   $("#back-to-today")?.addEventListener("click", () => setEditingDate(todayISO()));
   $("#viewing-back")?.addEventListener("click", () => setViewingUser(state.user.id));
@@ -404,7 +404,6 @@ function flashStatus(msg) {
 const RING_CIRCUMFERENCE = 2 * Math.PI * 84; // matches r=84 in markup
 
 function renderApp() {
-  $("#hello").textContent = state.profile?.display_name ? `Hi, ${state.profile.display_name}` : "";
   renderChallengePill();
   renderViewingBanner();
   renderRing();
@@ -1148,9 +1147,131 @@ function challengeRowMeta(c) {
 }
 
 function renderChallengePill() {
-  const pill = $("#challenge-pill-name");
-  if (!pill) return;
-  pill.textContent = activeChallenge()?.name || "No challenge";
+  const ac = activeChallenge();
+  const title = $("#header-challenge");
+  const sub = $("#header-sub");
+  if (title) title.textContent = ac?.name || "Race to Abs";
+  if (sub) {
+    if (!ac) { sub.textContent = ""; return; }
+    const today = todayISO();
+    const end = addDays(ac.start_date, ac.days - 1);
+    if (today < ac.start_date) sub.textContent = `Starts ${fmtDate(ac.start_date)}`;
+    else if (today > end)      sub.textContent = `Ended ${fmtDate(end)}`;
+    else {
+      const day = clamp(daysBetween(ac.start_date, today) + 1, 1, ac.days);
+      sub.textContent = `Day ${day} of ${ac.days}`;
+    }
+  }
+}
+
+const ICON_SWITCH = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+const ICON_USER = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+const ICON_GOAL = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`;
+const ICON_SIGNOUT = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
+
+function openMenu() {
+  const ac = activeChallenge();
+  const name = state.profile?.display_name || "—";
+  const email = state.user?.email || "";
+  const goal = state.profile?.custom_goal || "—";
+
+  openModal(`
+    <div class="menu-header">
+      <div class="menu-avatar">${escapeHtml(name.charAt(0).toUpperCase() || "?")}</div>
+      <div style="min-width: 0;">
+        <div class="menu-name">${escapeHtml(name)}</div>
+        <div class="menu-email muted small">${escapeHtml(email)}</div>
+      </div>
+    </div>
+    <ul class="menu-list">
+      <li><button type="button" class="menu-item" id="menu-switch">
+        <span class="menu-icon">${ICON_SWITCH}</span>
+        <div class="menu-label">
+          <div>Switch challenge</div>
+          <div class="muted small">${escapeHtml(ac?.name || "—")}</div>
+        </div>
+        <span class="menu-chev">›</span>
+      </button></li>
+      <li><button type="button" class="menu-item" id="menu-profile">
+        <span class="menu-icon">${ICON_USER}</span>
+        <div class="menu-label">
+          <div>Edit profile</div>
+          <div class="muted small">Display name</div>
+        </div>
+        <span class="menu-chev">›</span>
+      </button></li>
+      <li><button type="button" class="menu-item" id="menu-goal">
+        <span class="menu-icon">${ICON_GOAL}</span>
+        <div class="menu-label">
+          <div>Edit custom goal</div>
+          <div class="muted small">${escapeHtml(goal)}</div>
+        </div>
+        <span class="menu-chev">›</span>
+      </button></li>
+      <li><button type="button" class="menu-item danger" id="menu-signout">
+        <span class="menu-icon">${ICON_SIGNOUT}</span>
+        <div class="menu-label"><div>Sign out</div></div>
+        <span></span>
+      </button></li>
+    </ul>
+  `, {
+    onMount() {
+      $("#menu-switch").addEventListener("click", () => { closeModal(); openChallengePicker(); });
+      $("#menu-profile").addEventListener("click", openEditProfileForm);
+      $("#menu-goal").addEventListener("click", () => {
+        closeModal();
+        const next = window.prompt("Update your custom goal:", state.profile?.custom_goal || "");
+        if (next != null) updateCustomGoal(next);
+      });
+      $("#menu-signout").addEventListener("click", () => { closeModal(); handleSignOut(); });
+    },
+  });
+}
+
+function openEditProfileForm() {
+  const name = state.profile?.display_name || "";
+  const goal = state.profile?.custom_goal || "";
+  openModal(`
+    <h2>Edit profile</h2>
+    <p class="muted">Update your display name and custom goal. Anyone in your challenges will see these.</p>
+    <form id="edit-profile-form">
+      <div class="field">
+        <label for="ep-name">Display name</label>
+        <input type="text" id="ep-name" maxlength="40" required value="${escapeHtml(name)}" />
+      </div>
+      <div class="field">
+        <label for="ep-goal">Custom goal</label>
+        <input type="text" id="ep-goal" maxlength="60" required value="${escapeHtml(goal)}" />
+      </div>
+      <button type="submit" class="btn-primary">Save</button>
+      <p id="ep-status" class="muted"></p>
+    </form>
+  `, {
+    onMount() {
+      $("#edit-profile-form").addEventListener("submit", handleSaveProfile);
+    },
+  });
+}
+
+async function handleSaveProfile(e) {
+  e.preventDefault();
+  const name = $("#ep-name").value.trim();
+  const goal = $("#ep-goal").value.trim();
+  const status = $("#ep-status");
+  if (!name || !goal) return;
+  status.textContent = "Saving…";
+  const { error } = await state.client
+    .from("profiles")
+    .update({ display_name: name, custom_goal: goal })
+    .eq("id", state.user.id);
+  if (error) { status.textContent = "Couldn't save: " + error.message; return; }
+  state.profile.display_name = name;
+  state.profile.custom_goal = goal;
+  // Refresh self in the profiles list used by the leaderboard.
+  const mine = state.profiles.find((p) => p.id === state.user.id);
+  if (mine) { mine.display_name = name; mine.custom_goal = goal; }
+  closeModal();
+  renderApp();
 }
 
 function openModal(html, opts = {}) {
