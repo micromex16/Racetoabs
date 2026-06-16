@@ -20,20 +20,29 @@ const state = {
   client: null,
   user: null,
   profile: null,
-  settings: null,         // { challenge_start_date, challenge_days }
-  entries: [],            // all entries from all users
-  profiles: [],           // all profiles
+  challenges: [],         // all challenges the user is a member of
+  activeChallengeId: null,
+  entries: [],            // entries scoped to the active challenge
+  profiles: [],           // profiles of active-challenge members
   draft: {},              // { questionId: true } for the currently-displayed day
   editingDate: null,      // ISO date being shown / edited (defaults to today)
   viewingUserId: null,    // if set, we're looking at someone else's profile read-only
   saving: false,
-  messages: [],           // all chat messages, oldest first
+  messages: [],           // chat messages for the active challenge
   messagesChannel: null,  // supabase realtime channel
   pendingImage: null,     // File selected for upload but not yet sent
   sending: false,
 };
 
 const signedUrlCache = new Map(); // path → { url, expiresAt }
+const ACTIVE_KEY = (uid) => `raceToAbs.activeChallengeId.${uid}`;
+
+function activeChallenge() {
+  return state.challenges.find((c) => c.id === state.activeChallengeId) || null;
+}
+
+function challengeStart() { return activeChallenge()?.start_date || null; }
+function challengeDays()  { return activeChallenge()?.days || 30; }
 
 function viewedUserId() {
   return state.viewingUserId || state.user?.id;
@@ -76,6 +85,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   $("#chat-image")?.addEventListener("change", handlePickChatImage);
   $("#chat-preview-remove")?.addEventListener("click", clearPendingImage);
+  $("#challenge-pill")?.addEventListener("click", openChallengePicker);
+  $("#empty-new-challenge")?.addEventListener("click", openNewChallengeForm);
+  $("#empty-join-challenge")?.addEventListener("click", openJoinChallengeForm);
+  $("#modal-close")?.addEventListener("click", closeModal);
+  $("#modal-backdrop")?.addEventListener("click", closeModal);
 
   // Boot
   bootstrap();
@@ -97,20 +111,42 @@ async function applySession(session) {
     return;
   }
 
-  // Load profile + shared data
   await loadProfile();
   if (!state.profile || !state.profile.custom_goal || !state.profile.custom_goal.trim()) {
-    // Pre-fill if returning to finish onboarding
     if (state.profile?.display_name) $("#display-name").value = state.profile.display_name;
     if (state.profile?.custom_goal) $("#custom-goal").value = state.profile.custom_goal;
     show("view-onboarding");
     return;
   }
 
-  await Promise.all([loadSettings(), loadAllData(), loadMessages()]);
+  await loadChallenges();
+  await maybeAutoJoinFromUrl();
+  if (state.challenges.length === 0) {
+    show("view-challenges");
+    return;
+  }
+  await pickInitialActiveChallenge();
+  await loadActiveChallengeData();
   subscribeMessages();
   renderApp();
   show("view-app");
+}
+
+async function pickInitialActiveChallenge() {
+  // Prefer the previously-selected challenge (per-user, localStorage), else pick
+  // the most-recent challenge whose window contains today, else the newest one.
+  const saved = localStorage.getItem(ACTIVE_KEY(state.user.id));
+  if (saved && state.challenges.some((c) => c.id === saved)) {
+    state.activeChallengeId = saved;
+    return;
+  }
+  const today = todayISO();
+  const active = state.challenges
+    .filter((c) => c.start_date <= today && addDays(c.start_date, c.days - 1) >= today)
+    .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+  const newest = [...state.challenges].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  state.activeChallengeId = (active || newest).id;
+  localStorage.setItem(ACTIVE_KEY(state.user.id), state.activeChallengeId);
 }
 
 // ─── Data loading ─────────────────────────────────────────────────────────
@@ -124,26 +160,59 @@ async function loadProfile() {
   state.profile = data || null;
 }
 
-async function loadSettings() {
+async function loadChallenges() {
   const { data, error } = await state.client
-    .from("settings")
-    .select("*")
-    .eq("id", 1)
-    .maybeSingle();
-  if (error) console.error(error);
-  state.settings = data || { challenge_start_date: todayISO(), challenge_days: 30 };
+    .from("challenges")
+    .select("id, name, start_date, days, invite_code, created_by, created_at")
+    .order("start_date", { ascending: false });
+  if (error) { console.error(error); state.challenges = []; return; }
+  state.challenges = data || [];
 }
 
-async function loadAllData() {
-  const [{ data: profiles }, { data: entries }] = await Promise.all([
-    state.client.from("profiles").select("id, display_name, custom_goal"),
-    state.client.from("entries").select("id, user_id, date, answers, points").order("date", { ascending: false }),
+async function loadActiveChallengeData() {
+  const cid = state.activeChallengeId;
+  if (!cid) return;
+
+  const [{ data: members, error: mErr }, { data: entries, error: eErr }] = await Promise.all([
+    state.client.from("challenge_members").select("user_id, joined_at").eq("challenge_id", cid),
+    state.client.from("entries").select("id, user_id, date, answers, points")
+      .eq("challenge_id", cid).order("date", { ascending: false }),
   ]);
-  state.profiles = profiles || [];
+  if (mErr) console.error(mErr);
+  if (eErr) console.error(eErr);
   state.entries = entries || [];
 
+  const memberIds = (members || []).map((m) => m.user_id);
+  if (memberIds.length > 0) {
+    const { data: profiles } = await state.client
+      .from("profiles").select("id, display_name, custom_goal").in("id", memberIds);
+    state.profiles = profiles || [];
+  } else {
+    state.profiles = [];
+  }
+
+  await loadMessages();
+
   if (!state.editingDate) state.editingDate = todayISO();
+  if (state.viewingUserId && !state.profiles.find((p) => p.id === state.viewingUserId)) {
+    state.viewingUserId = null; // viewed user isn't in this challenge
+  }
   reseedDraftFromEditingDate();
+}
+
+async function setActiveChallenge(cid) {
+  if (!cid || cid === state.activeChallengeId) return;
+  state.activeChallengeId = cid;
+  localStorage.setItem(ACTIVE_KEY(state.user.id), cid);
+  state.editingDate = todayISO();
+  state.viewingUserId = null;
+  state.entries = [];
+  state.messages = [];
+  state.profiles = [];
+  await loadActiveChallengeData();
+  await resubscribeMessages();
+  renderApp();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function reseedDraftFromEditingDate() {
@@ -235,6 +304,8 @@ async function handleSignOut() {
   state.messages = [];
   state.viewingUserId = null;
   state.editingDate = null;
+  state.challenges = [];
+  state.activeChallengeId = null;
   signedUrlCache.clear();
 }
 
@@ -253,7 +324,14 @@ async function handleCreateProfile(e) {
     return;
   }
   await loadProfile();
-  await Promise.all([loadSettings(), loadAllData()]);
+  await loadChallenges();
+  if (state.challenges.length === 0) {
+    show("view-challenges");
+    return;
+  }
+  await pickInitialActiveChallenge();
+  await loadActiveChallengeData();
+  subscribeMessages();
   renderApp();
   show("view-app");
 }
@@ -292,6 +370,7 @@ async function handleSaveEntry() {
 
   const row = {
     user_id: state.user.id,
+    challenge_id: state.activeChallengeId,
     date,
     answers,
     points,
@@ -310,7 +389,7 @@ async function handleSaveEntry() {
   }
   const dayLabel = date === todayISO() ? "today" : fmtDate(date);
   flashStatus(`Saved. +${points} pts for ${dayLabel}.`);
-  await loadAllData();
+  await loadActiveChallengeData();
   renderApp();
 }
 
@@ -326,6 +405,7 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * 84; // matches r=84 in markup
 
 function renderApp() {
   $("#hello").textContent = state.profile?.display_name ? `Hi, ${state.profile.display_name}` : "";
+  renderChallengePill();
   renderViewingBanner();
   renderRing();
   renderStats();
@@ -402,7 +482,7 @@ function renderRing() {
   const checkedCount = QUESTIONS.filter((q) => draftAnswers[q.id]).length;
   const tag = inWindow
     ? `${checkedCount} of ${QUESTIONS.length} checked`
-    : (date < state.settings.challenge_start_date ? "before challenge" : "after challenge");
+    : (date < challengeStart() ? "before challenge" : "after challenge");
   $("#ring-tag").textContent = tag;
 
   let stateMsg = "";
@@ -432,10 +512,10 @@ function renderRing() {
 }
 
 function renderStats() {
-  const start = state.settings.challenge_start_date;
-  const total = state.settings.challenge_days;
+  const start = challengeStart();
+  const total = challengeDays();
   const today = todayISO();
-  const rawDay = daysBetween(start, today) + 1;
+  const rawDay = start ? daysBetween(start, today) + 1 : 0;
   const dayNum = clamp(rawDay, 0, total);
 
   $("#stat-day-total").textContent = String(total);
@@ -523,12 +603,12 @@ function renderCheckin() {
   list.classList.toggle("readonly", readOnly);
 
   if (!inWindow) {
-    const start = state.settings.challenge_start_date;
+    const start = challengeStart();
     const before = date < start;
     outEl.classList.remove("hidden");
     outEl.textContent = before
       ? `Challenge starts ${fmtDate(start)}. Hang tight.`
-      : `Challenge ended ${fmtDate(addDays(start, state.settings.challenge_days - 1))}.`;
+      : `Challenge ended ${fmtDate(addDays(start, challengeDays() - 1))}.`;
     list.classList.add("hidden");
     saveBtn.classList.add("hidden");
     return;
@@ -714,8 +794,9 @@ function computePoints(answers) {
 }
 
 function isInChallengeWindow(iso) {
-  const start = state.settings.challenge_start_date;
-  const end = addDays(start, state.settings.challenge_days - 1);
+  const start = challengeStart();
+  if (!start) return false;
+  const end = addDays(start, challengeDays() - 1);
   return iso >= start && iso <= end;
 }
 
@@ -789,9 +870,11 @@ function escapeHtml(s) {
 
 // ─── Chat ─────────────────────────────────────────────────────────────────
 async function loadMessages() {
+  if (!state.activeChallengeId) { state.messages = []; return; }
   const { data, error } = await state.client
     .from("messages")
     .select("id, user_id, body, image_path, created_at")
+    .eq("challenge_id", state.activeChallengeId)
     .order("created_at", { ascending: true })
     .limit(200);
   if (error) { console.error(error); return; }
@@ -800,12 +883,13 @@ async function loadMessages() {
 }
 
 function subscribeMessages() {
-  if (state.messagesChannel) return;
+  if (!state.activeChallengeId || state.messagesChannel) return;
+  const cid = state.activeChallengeId;
   state.messagesChannel = state.client
-    .channel("messages-feed")
+    .channel(`messages-feed:${cid}`)
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "messages" },
+      { event: "INSERT", schema: "public", table: "messages", filter: `challenge_id=eq.${cid}` },
       async (payload) => {
         const m = payload.new;
         if (!state.messages.find((x) => x.id === m.id)) state.messages.push(m);
@@ -815,7 +899,7 @@ function subscribeMessages() {
     )
     .on(
       "postgres_changes",
-      { event: "DELETE", schema: "public", table: "messages" },
+      { event: "DELETE", schema: "public", table: "messages", filter: `challenge_id=eq.${cid}` },
       (payload) => {
         const id = payload.old?.id;
         if (!id) return;
@@ -824,6 +908,14 @@ function subscribeMessages() {
       }
     )
     .subscribe();
+}
+
+async function resubscribeMessages() {
+  if (state.messagesChannel) {
+    try { await state.client.removeChannel(state.messagesChannel); } catch {}
+    state.messagesChannel = null;
+  }
+  subscribeMessages();
 }
 
 async function getSignedUrl(path) {
@@ -911,6 +1003,7 @@ async function handleSendChat() {
     if (hasImage) imagePath = await uploadChatImage(state.pendingImage);
     const { error } = await state.client.from("messages").insert({
       user_id: state.user.id,
+      challenge_id: state.activeChallengeId,
       body: body || null,
       image_path: imagePath,
     });
@@ -1035,9 +1128,221 @@ async function deleteMessage(id) {
   renderChat({ keepScroll: true });
 }
 
+// ─── Challenges UI: picker modal, new + join forms, invite-code sharing ───
+function classifyChallenge(c) {
+  const today = todayISO();
+  const end = addDays(c.start_date, c.days - 1);
+  if (today < c.start_date) return { status: "upcoming", end };
+  if (today > end)         return { status: "past", end };
+  return { status: "active", end };
+}
+
+function challengeRowMeta(c) {
+  const { status, end } = classifyChallenge(c);
+  if (status === "active") {
+    const day = clamp(daysBetween(c.start_date, todayISO()) + 1, 1, c.days);
+    return `Day ${day} of ${c.days}`;
+  }
+  if (status === "past")     return `Ended ${fmtDate(end)}`;
+  return `Starts ${fmtDate(c.start_date)}`;
+}
+
+function renderChallengePill() {
+  const pill = $("#challenge-pill-name");
+  if (!pill) return;
+  pill.textContent = activeChallenge()?.name || "No challenge";
+}
+
+function openModal(html, opts = {}) {
+  const content = $("#modal-content");
+  content.innerHTML = html;
+  $("#modal-overlay").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  opts.onMount?.();
+}
+
+function closeModal() {
+  $("#modal-overlay").classList.add("hidden");
+  $("#modal-content").innerHTML = "";
+  document.body.style.overflow = "";
+}
+
+function openChallengePicker() {
+  const sorted = [...state.challenges].sort((a, b) => {
+    const sa = classifyChallenge(a).status === "past" ? 1 : 0;
+    const sb = classifyChallenge(b).status === "past" ? 1 : 0;
+    if (sa !== sb) return sa - sb;
+    return b.start_date.localeCompare(a.start_date);
+  });
+
+  const rows = sorted.map((c) => {
+    const isActive = c.id === state.activeChallengeId;
+    const cls = classifyChallenge(c).status;
+    return `
+      <button class="picker-row ${isActive ? "current" : ""}" data-cid="${c.id}">
+        <div class="picker-row-main">
+          <div class="picker-row-name">${escapeHtml(c.name)} ${cls === "past" ? '<span class="picker-tag past">past</span>' : cls === "upcoming" ? '<span class="picker-tag upcoming">upcoming</span>' : ''}</div>
+          <div class="picker-row-meta">${challengeRowMeta(c)}</div>
+        </div>
+        ${isActive ? '<span class="picker-check" aria-label="current">✓</span>' : ""}
+      </button>
+    `;
+  }).join("");
+
+  const active = activeChallenge();
+  const inviteHtml = active ? `
+    <div class="picker-section">
+      <div class="picker-section-label">Invite people to "${escapeHtml(active.name)}"</div>
+      <div class="picker-invite-row">
+        <code class="picker-invite-code">${active.invite_code}</code>
+        <button type="button" class="btn-ghost" id="copy-invite-btn">Copy code</button>
+        <button type="button" class="btn-ghost" id="copy-link-btn">Copy link</button>
+      </div>
+      <p class="muted small">Share this code or link with someone. They'll join "${escapeHtml(active.name)}" after signing in.</p>
+    </div>
+  ` : "";
+
+  openModal(`
+    <h2>Your challenges</h2>
+    <div class="picker-list">${rows || '<p class="muted">No challenges yet.</p>'}</div>
+    ${inviteHtml}
+    <div class="picker-actions">
+      <button type="button" class="btn-primary" id="picker-new">+ New challenge</button>
+      <button type="button" class="btn-ghost" id="picker-join">Join with code</button>
+    </div>
+  `, {
+    onMount() {
+      document.querySelectorAll(".picker-row").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const cid = b.dataset.cid;
+          closeModal();
+          if (cid !== state.activeChallengeId) await setActiveChallenge(cid);
+        })
+      );
+      $("#picker-new")?.addEventListener("click", openNewChallengeForm);
+      $("#picker-join")?.addEventListener("click", openJoinChallengeForm);
+      $("#copy-invite-btn")?.addEventListener("click", () => copyText(active.invite_code, "Code copied"));
+      $("#copy-link-btn")?.addEventListener("click", () =>
+        copyText(`${location.origin}${location.pathname}?join=${active.invite_code}`, "Invite link copied")
+      );
+    },
+  });
+}
+
+function openNewChallengeForm() {
+  const todayDefault = todayISO();
+  openModal(`
+    <h2>New challenge</h2>
+    <p class="muted">Set a name, a kickoff date, and how many days it runs.</p>
+    <form id="new-challenge-form">
+      <div class="field">
+        <label for="nc-name">Name</label>
+        <input type="text" id="nc-name" maxlength="40" required placeholder='e.g. "Summer round"' />
+      </div>
+      <div class="field">
+        <label for="nc-date">Start date</label>
+        <input type="date" id="nc-date" required value="${todayDefault}" />
+      </div>
+      <div class="field">
+        <label for="nc-days">Length (days)</label>
+        <input type="number" id="nc-days" min="1" max="365" value="30" required />
+      </div>
+      <button type="submit" class="btn-primary">Create</button>
+      <p id="nc-status" class="muted"></p>
+    </form>
+  `, {
+    onMount() {
+      $("#new-challenge-form").addEventListener("submit", handleCreateChallenge);
+    },
+  });
+}
+
+function openJoinChallengeForm() {
+  openModal(`
+    <h2>Join a challenge</h2>
+    <p class="muted">Enter the 6-character code from whoever invited you.</p>
+    <form id="join-challenge-form">
+      <div class="field">
+        <label for="jc-code">Invite code</label>
+        <input type="text" id="jc-code" required minlength="4" maxlength="12" autocapitalize="characters" placeholder="ABC123" />
+      </div>
+      <button type="submit" class="btn-primary">Join</button>
+      <p id="jc-status" class="muted"></p>
+    </form>
+  `, {
+    onMount() {
+      $("#join-challenge-form").addEventListener("submit", handleJoinChallenge);
+      $("#jc-code").focus();
+    },
+  });
+}
+
+async function handleCreateChallenge(e) {
+  e.preventDefault();
+  const name = $("#nc-name").value.trim();
+  const date = $("#nc-date").value;
+  const days = parseInt($("#nc-days").value, 10);
+  const status = $("#nc-status");
+  if (!name || !date || !days) return;
+  status.textContent = "Creating…";
+  const { data, error } = await state.client.rpc("create_challenge", {
+    p_name: name, p_start_date: date, p_days: days,
+  });
+  if (error) { status.textContent = "Couldn't create: " + error.message; return; }
+  closeModal();
+  await loadChallenges();
+  await setActiveChallenge(data);
+  show("view-app");
+}
+
+async function handleJoinChallenge(e) {
+  e.preventDefault();
+  const code = $("#jc-code").value.trim().toUpperCase();
+  const status = $("#jc-status");
+  if (!code) return;
+  status.textContent = "Joining…";
+  const { data, error } = await state.client.rpc("join_challenge", { p_code: code });
+  if (error) {
+    status.textContent = /no challenge/i.test(error.message)
+      ? "No challenge with that code."
+      : ("Couldn't join: " + error.message);
+    return;
+  }
+  closeModal();
+  await loadChallenges();
+  await setActiveChallenge(data);
+  show("view-app");
+}
+
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+    flashStatus(label || "Copied");
+  } catch {
+    prompt("Copy this:", text);
+  }
+}
+
+// Auto-join via ?join=CODE in the URL. Runs once after the user has a profile.
+async function maybeAutoJoinFromUrl() {
+  const url = new URL(location.href);
+  const code = url.searchParams.get("join");
+  if (!code) return;
+  url.searchParams.delete("join");
+  history.replaceState({}, "", url.toString());
+  try {
+    const { data, error } = await state.client.rpc("join_challenge", { p_code: code });
+    if (error) { alert("Couldn't join: " + error.message); return; }
+    await loadChallenges();
+    if (data) await setActiveChallenge(data);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 // ─── View switching ───────────────────────────────────────────────────────
 function show(id) {
-  ["view-loading", "view-config", "view-auth", "view-onboarding", "view-app"].forEach((v) => {
+  ["view-loading", "view-config", "view-auth", "view-onboarding", "view-challenges", "view-app"].forEach((v) => {
     const el = document.getElementById(v);
     if (!el) return;
     el.classList.toggle("hidden", v !== id);

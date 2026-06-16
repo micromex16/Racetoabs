@@ -67,6 +67,23 @@
     </div>
   </div>
 
+  <!-- No challenges yet: pick one or start one -->
+  <div id="view-challenges" class="view view-center hidden">
+    <div class="brand-mark">
+      <div class="logo-ring"><span>RA</span></div>
+      <h1 class="brand-name">Race to Abs</h1>
+      <p class="tagline">Start a new round, or hop into one your friends are already running.</p>
+    </div>
+    <div class="card narrow">
+      <h2>Pick a challenge</h2>
+      <p class="muted">You're not in any yet. Start a new round (you become the host and get an invite code to share), or join one with a code.</p>
+      <div class="empty-actions">
+        <button type="button" id="empty-new-challenge" class="btn-primary">Start a new challenge</button>
+        <button type="button" id="empty-join-challenge" class="btn-ghost">Join with a code</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Onboarding (set display name + custom goal) -->
   <div id="view-onboarding" class="view view-center hidden">
     <div class="card narrow">
@@ -95,6 +112,10 @@
         <div class="logo-ring small"><span>RA</span></div>
         <span class="brand-name small">Race to Abs</span>
       </div>
+      <button id="challenge-pill" class="challenge-pill" type="button" aria-label="Switch challenge">
+        <span id="challenge-pill-name">Loading…</span>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
       <div class="header-right">
         <span id="hello" class="muted"></span>
         <button id="signout-btn" type="button" class="btn-ghost">Sign out</button>
@@ -233,6 +254,15 @@
     <footer class="app-footer">
       <p class="muted">All entries sync across devices. Sign in on any phone.</p>
     </footer>
+  </div>
+
+  <!-- Shared modal overlay (challenge picker, new challenge form, join form) -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div id="modal-backdrop" class="modal-backdrop"></div>
+    <div id="modal-card" class="modal-card">
+      <button id="modal-close" class="modal-close" type="button" aria-label="Close">×</button>
+      <div id="modal-content"></div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

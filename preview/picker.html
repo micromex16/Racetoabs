@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Race to Abs — challenge picker</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  *, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; }
+  body { padding: 1rem; }
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: var(--shadow-md);
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 1.25rem 1.25rem 1rem;
+  }
+  .preview-card h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+</style>
+</head>
+<body>
+  <div class="preview-card">
+    <h2>Your challenges</h2>
+    <div class="picker-list">
+      <button class="picker-row current" type="button">
+        <div class="picker-row-main">
+          <div class="picker-row-name">Round 1</div>
+          <div class="picker-row-meta">Day 12 of 30</div>
+        </div>
+        <span class="picker-check">✓</span>
+      </button>
+      <button class="picker-row" type="button">
+        <div class="picker-row-main">
+          <div class="picker-row-name">Summer round <span class="picker-tag upcoming">upcoming</span></div>
+          <div class="picker-row-meta">Starts Jun 22</div>
+        </div>
+      </button>
+      <button class="picker-row" type="button">
+        <div class="picker-row-main">
+          <div class="picker-row-name">Spring shred <span class="picker-tag past">past</span></div>
+          <div class="picker-row-meta">Ended Apr 30</div>
+        </div>
+      </button>
+    </div>
+    <div class="picker-section">
+      <div class="picker-section-label">Invite people to "Round 1"</div>
+      <div class="picker-invite-row">
+        <code class="picker-invite-code">7F3A2K</code>
+        <button type="button" class="btn-ghost">Copy code</button>
+        <button type="button" class="btn-ghost">Copy link</button>
+      </div>
+      <p class="muted small">Share this code or link with someone. They'll join "Round 1" after signing in.</p>
+    </div>
+    <div class="picker-actions">
+      <button type="button" class="btn-primary">+ New challenge</button>
+      <button type="button" class="btn-ghost">Join with code</button>
+    </div>
+  </div>
+</body>
+</html>
