@@ -178,8 +178,26 @@ create table if not exists public.challenges (
   invite_code text not null unique
     default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)),
   created_by uuid references auth.users(id) on delete set null,
+  goals jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
+
+-- Migration: add goals column on existing projects + seed defaults so the
+-- first round keeps working with the original 9-item checklist.
+alter table public.challenges add column if not exists goals jsonb;
+update public.challenges set goals = '[
+  {"id":"exercise","text":"30 minutes of exercise","points":3},
+  {"id":"core","text":"Extra 5 minutes of core","points":1},
+  {"id":"nutrition","text":"Hit your nutrition goal","points":3},
+  {"id":"sleep","text":"More than 7 hours of sleep","points":2},
+  {"id":"water","text":"More than 60 oz of water","points":2},
+  {"id":"stretch","text":"Stretched or foam rolled","points":1},
+  {"id":"noAlcohol","text":"No alcohol today","points":2},
+  {"id":"screen","text":"Less than 1 hr non-work screen time","points":2},
+  {"id":"custom","text":"Personal goal","points":2}
+]'::jsonb where goals is null;
+do $$ begin alter table public.challenges alter column goals set default '[]'::jsonb; exception when others then null; end $$;
+do $$ begin alter table public.challenges alter column goals set not null; exception when others then null; end $$;
 
 create table if not exists public.challenge_members (
   challenge_id uuid not null references public.challenges(id) on delete cascade,

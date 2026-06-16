@@ -1,7 +1,10 @@
 // Race to Abs — frontend
 // Backed by Supabase (auth + Postgres). See supabase/schema.sql.
 
-const QUESTIONS = [
+// Per-challenge goals live on challenges.goals (jsonb array of
+// { id, text, points }). The defaults below are only used as a fallback
+// while data is loading.
+const DEFAULT_GOALS = [
   { id: "exercise",  text: "30 minutes of exercise",                points: 3 },
   { id: "core",      text: "Extra 5 minutes of core",               points: 1 },
   { id: "nutrition", text: "Hit your nutrition goal",               points: 3 },
@@ -10,10 +13,21 @@ const QUESTIONS = [
   { id: "stretch",   text: "Stretched or foam rolled",              points: 1 },
   { id: "noAlcohol", text: "No alcohol today",                      points: 2 },
   { id: "screen",    text: "Less than 1 hr non-work screen time",   points: 2 },
-  { id: "custom",    text: "Your custom goal",                      points: 2, custom: true },
 ];
 
-const MAX_DAILY = QUESTIONS.reduce((s, q) => s + q.points, 0);
+function activeGoals() {
+  const ac = activeChallenge();
+  if (ac?.goals && Array.isArray(ac.goals) && ac.goals.length > 0) return ac.goals;
+  return DEFAULT_GOALS;
+}
+
+function maxDailyPoints() {
+  return activeGoals().reduce((s, g) => s + (Number(g.points) || 0), 0);
+}
+
+function newGoalId() {
+  return "g" + Math.random().toString(36).slice(2, 8);
+}
 
 // ─── State ────────────────────────────────────────────────────────────────
 const state = {
@@ -112,9 +126,8 @@ async function applySession(session) {
   }
 
   await loadProfile();
-  if (!state.profile || !state.profile.custom_goal || !state.profile.custom_goal.trim()) {
+  if (!state.profile || !state.profile.display_name?.trim()) {
     if (state.profile?.display_name) $("#display-name").value = state.profile.display_name;
-    if (state.profile?.custom_goal) $("#custom-goal").value = state.profile.custom_goal;
     show("view-onboarding");
     return;
   }
@@ -312,13 +325,12 @@ async function handleSignOut() {
 async function handleCreateProfile(e) {
   e.preventDefault();
   const name = $("#display-name").value.trim();
-  const customGoal = $("#custom-goal").value.trim();
-  if (!name || !customGoal) return;
+  if (!name) return;
   const status = $("#profile-status");
   status.textContent = "Saving…";
   const { error } = await state.client
     .from("profiles")
-    .upsert({ id: state.user.id, display_name: name, custom_goal: customGoal });
+    .upsert({ id: state.user.id, display_name: name });
   if (error) {
     status.textContent = "Couldn't save: " + error.message;
     return;
@@ -336,21 +348,6 @@ async function handleCreateProfile(e) {
   show("view-app");
 }
 
-async function updateCustomGoal(newGoal) {
-  const trimmed = (newGoal || "").trim();
-  if (!trimmed) return;
-  const { error } = await state.client
-    .from("profiles")
-    .update({ custom_goal: trimmed })
-    .eq("id", state.user.id);
-  if (error) {
-    flashStatus("Couldn't update goal: " + error.message);
-    return;
-  }
-  state.profile.custom_goal = trimmed;
-  renderCheckin();
-}
-
 // ─── Entry handlers ───────────────────────────────────────────────────────
 async function handleSaveEntry() {
   if (state.saving) return;
@@ -365,7 +362,8 @@ async function handleSaveEntry() {
   btn.textContent = "Saving…";
 
   const answers = {};
-  for (const q of QUESTIONS) answers[q.id] = !!state.draft[q.id];
+  const goals = activeGoals();
+  for (const q of goals) answers[q.id] = !!state.draft[q.id];
   const points = computePoints(answers);
 
   const row = {
@@ -455,7 +453,9 @@ function renderRing() {
   const readOnly = isReadOnly();
   const userId = viewedUserId();
   $("#ring-date").textContent = fmtDate(date);
-  $("#ring-max").textContent = String(MAX_DAILY);
+  const MAX = maxDailyPoints();
+  const goals = activeGoals();
+  $("#ring-max").textContent = String(MAX);
 
   const eyebrow = document.querySelector(".bento-ring .eyebrow");
   if (eyebrow) {
@@ -468,9 +468,9 @@ function renderRing() {
     (e) => e.user_id === userId && e.date === date
   );
   const draftAnswers = {};
-  for (const q of QUESTIONS) draftAnswers[q.id] = !!state.draft[q.id];
+  for (const q of goals) draftAnswers[q.id] = !!state.draft[q.id];
   const points = computePoints(draftAnswers);
-  const pct = MAX_DAILY > 0 ? Math.min(points / MAX_DAILY, 1) : 0;
+  const pct = MAX > 0 ? Math.min(points / MAX, 1) : 0;
 
   animateNumber($("#ring-num"), points);
 
@@ -478,9 +478,9 @@ function renderRing() {
   fillEl.setAttribute("stroke-dasharray", String(RING_CIRCUMFERENCE));
   fillEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - pct));
 
-  const checkedCount = QUESTIONS.filter((q) => draftAnswers[q.id]).length;
+  const checkedCount = goals.filter((q) => draftAnswers[q.id]).length;
   const tag = inWindow
-    ? `${checkedCount} of ${QUESTIONS.length} checked`
+    ? `${checkedCount} of ${goals.length} checked`
     : (date < challengeStart() ? "before challenge" : "after challenge");
   $("#ring-tag").textContent = tag;
 
@@ -489,10 +489,10 @@ function renderRing() {
     stateMsg = "";
   } else if (readOnly) {
     stateMsg = dayEntry
-      ? (points === MAX_DAILY ? "Perfect day" : "Logged")
+      ? (points === MAX ? "Perfect day" : "Logged")
       : "Not logged this day";
   } else if (dayEntry && JSON.stringify(draftAnswers) === JSON.stringify(dayEntry.answers)) {
-    stateMsg = points === MAX_DAILY
+    stateMsg = points === MAX
       ? (isToday ? "Perfect day. Locked in." : "Perfect day · saved")
       : (isToday ? "Saved for today" : "Saved");
   } else if (dayEntry) {
@@ -506,7 +506,7 @@ function renderRing() {
 
   document.querySelector(".bento-ring").classList.toggle(
     "complete",
-    inWindow && points === MAX_DAILY
+    inWindow && points === MAX
   );
 }
 
@@ -569,7 +569,7 @@ function renderStats() {
   const userPoints = userEntries.reduce((s, e) => s + e.points, 0);
   animateNumber($("#stat-points"), userPoints);
 
-  const maxSoFar = Math.max(dayNum, 0) * MAX_DAILY;
+  const maxSoFar = Math.max(dayNum, 0) * maxDailyPoints();
   $("#stat-points-sub").textContent = maxSoFar > 0
     ? `of ${maxSoFar} possible · ${Math.round((userPoints / maxSoFar) * 100)}%`
     : "challenge starting soon";
@@ -617,33 +617,21 @@ function renderCheckin() {
   saveBtn.classList.toggle("hidden", readOnly);
 
   list.innerHTML = "";
-  for (const q of QUESTIONS) {
+  for (const q of activeGoals()) {
     const checked = !!state.draft[q.id];
-    const isCustom = !!q.custom;
-    const customLabel = profile?.custom_goal?.trim();
-    const labelText = isCustom
-      ? (customLabel || (readOnly ? "Custom goal (not set)" : "Set a custom goal"))
-      : q.text;
     const item = document.createElement("div");
-    item.className = "checkin-item" + (checked ? " checked" : "") + (isCustom ? " custom" : "");
+    item.className = "checkin-item" + (checked ? " checked" : "");
     item.dataset.qid = q.id;
     if (!readOnly) {
       item.setAttribute("role", "button");
       item.setAttribute("tabindex", "0");
       item.setAttribute("aria-pressed", checked ? "true" : "false");
     }
-    const editBtn = (isCustom && !readOnly)
-      ? `<button type="button" class="edit-goal" aria-label="Edit custom goal" title="Edit goal">
-           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-             <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
-           </svg>
-         </button>`
-      : "";
-    const ptsLabel = `+${q.points} pt${q.points === 1 ? "" : "s"}${isCustom ? (readOnly ? " · custom goal" : " · your goal") : ""}`;
+    const pts = Number(q.points) || 0;
     item.innerHTML = `
       <div class="checkin-label">
-        <div class="checkin-q">${escapeHtml(labelText)}${editBtn}</div>
-        <div class="checkin-pts">${ptsLabel}</div>
+        <div class="checkin-q">${escapeHtml(q.text || "—")}</div>
+        <div class="checkin-pts">+${pts} pt${pts === 1 ? "" : "s"}</div>
       </div>
       <div class="check-circle" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#062b14" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
@@ -652,24 +640,13 @@ function renderCheckin() {
       </div>
     `;
     if (!readOnly) {
-      item.addEventListener("click", (e) => {
-        if (e.target.closest(".edit-goal")) return;
-        toggleQuestion(q.id);
-      });
+      item.addEventListener("click", () => toggleQuestion(q.id));
       item.addEventListener("keydown", (e) => {
         if (e.key === " " || e.key === "Enter") {
           e.preventDefault();
           toggleQuestion(q.id);
         }
       });
-      if (isCustom) {
-        item.querySelector(".edit-goal")?.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const current = state.profile?.custom_goal || "";
-          const next = window.prompt("Update your custom goal:", current);
-          if (next != null) updateCustomGoal(next);
-        });
-      }
     }
     list.appendChild(item);
   }
@@ -789,7 +766,7 @@ function renderWeekStrip() {
 
 // ─── Computations ─────────────────────────────────────────────────────────
 function computePoints(answers) {
-  return QUESTIONS.reduce((s, q) => s + (answers[q.id] ? q.points : 0), 0);
+  return activeGoals().reduce((s, q) => s + (answers[q.id] ? (Number(q.points) || 0) : 0), 0);
 }
 
 function isInChallengeWindow(iso) {
@@ -1173,7 +1150,20 @@ function openMenu() {
   const ac = activeChallenge();
   const name = state.profile?.display_name || "—";
   const email = state.user?.email || "";
-  const goal = state.profile?.custom_goal || "—";
+  const isHost = ac && ac.created_by === state.user.id;
+  const goalsCount = activeGoals().length;
+  const maxPts = maxDailyPoints();
+
+  const editGoalsItem = isHost ? `
+    <li><button type="button" class="menu-item" id="menu-edit-goals">
+      <span class="menu-icon">${ICON_GOAL}</span>
+      <div class="menu-label">
+        <div>Edit challenge goals</div>
+        <div class="muted small">${goalsCount} goal${goalsCount === 1 ? "" : "s"} · ${maxPts} pts/day</div>
+      </div>
+      <span class="menu-chev">›</span>
+    </button></li>
+  ` : "";
 
   openModal(`
     <div class="menu-header">
@@ -1192,19 +1182,12 @@ function openMenu() {
         </div>
         <span class="menu-chev">›</span>
       </button></li>
+      ${editGoalsItem}
       <li><button type="button" class="menu-item" id="menu-profile">
         <span class="menu-icon">${ICON_USER}</span>
         <div class="menu-label">
           <div>Edit profile</div>
           <div class="muted small">Display name</div>
-        </div>
-        <span class="menu-chev">›</span>
-      </button></li>
-      <li><button type="button" class="menu-item" id="menu-goal">
-        <span class="menu-icon">${ICON_GOAL}</span>
-        <div class="menu-label">
-          <div>Edit custom goal</div>
-          <div class="muted small">${escapeHtml(goal)}</div>
         </div>
         <span class="menu-chev">›</span>
       </button></li>
@@ -1217,12 +1200,8 @@ function openMenu() {
   `, {
     onMount() {
       $("#menu-switch").addEventListener("click", () => { closeModal(); openChallengePicker(); });
+      $("#menu-edit-goals")?.addEventListener("click", () => { closeModal(); openEditGoalsForm(); });
       $("#menu-profile").addEventListener("click", openEditProfileForm);
-      $("#menu-goal").addEventListener("click", () => {
-        closeModal();
-        const next = window.prompt("Update your custom goal:", state.profile?.custom_goal || "");
-        if (next != null) updateCustomGoal(next);
-      });
       $("#menu-signout").addEventListener("click", () => { closeModal(); handleSignOut(); });
     },
   });
@@ -1230,18 +1209,13 @@ function openMenu() {
 
 function openEditProfileForm() {
   const name = state.profile?.display_name || "";
-  const goal = state.profile?.custom_goal || "";
   openModal(`
     <h2>Edit profile</h2>
-    <p class="muted">Update your display name and custom goal. Anyone in your challenges will see these.</p>
+    <p class="muted">Your name on the leaderboard and in the chat.</p>
     <form id="edit-profile-form">
       <div class="field">
         <label for="ep-name">Display name</label>
         <input type="text" id="ep-name" maxlength="40" required value="${escapeHtml(name)}" />
-      </div>
-      <div class="field">
-        <label for="ep-goal">Custom goal</label>
-        <input type="text" id="ep-goal" maxlength="60" required value="${escapeHtml(goal)}" />
       </div>
       <button type="submit" class="btn-primary">Save</button>
       <p id="ep-status" class="muted"></p>
@@ -1256,20 +1230,17 @@ function openEditProfileForm() {
 async function handleSaveProfile(e) {
   e.preventDefault();
   const name = $("#ep-name").value.trim();
-  const goal = $("#ep-goal").value.trim();
   const status = $("#ep-status");
-  if (!name || !goal) return;
+  if (!name) return;
   status.textContent = "Saving…";
   const { error } = await state.client
     .from("profiles")
-    .update({ display_name: name, custom_goal: goal })
+    .update({ display_name: name })
     .eq("id", state.user.id);
   if (error) { status.textContent = "Couldn't save: " + error.message; return; }
   state.profile.display_name = name;
-  state.profile.custom_goal = goal;
-  // Refresh self in the profiles list used by the leaderboard.
   const mine = state.profiles.find((p) => p.id === state.user.id);
-  if (mine) { mine.display_name = name; mine.custom_goal = goal; }
+  if (mine) mine.display_name = name;
   closeModal();
   renderApp();
 }
@@ -1352,9 +1323,10 @@ function openChallengePicker() {
 
 function openNewChallengeForm() {
   const todayDefault = todayISO();
+  const seedGoals = DEFAULT_GOALS.map((g) => ({ ...g, id: newGoalId() }));
   openModal(`
     <h2>New challenge</h2>
-    <p class="muted">Set a name, a kickoff date, and how many days it runs.</p>
+    <p class="muted">Name it, set a start date, and define the daily check-in items + points.</p>
     <form id="new-challenge-form">
       <div class="field">
         <label for="nc-name">Name</label>
@@ -1368,14 +1340,101 @@ function openNewChallengeForm() {
         <label for="nc-days">Length (days)</label>
         <input type="number" id="nc-days" min="1" max="365" value="30" required />
       </div>
-      <button type="submit" class="btn-primary">Create</button>
+      <div class="field">
+        <label>Daily goals</label>
+        <small class="muted small">Each one is a yes/no check-in. Add as many as you want.</small>
+        <div id="goals-editor" class="goals-editor"></div>
+        <button type="button" id="add-goal" class="btn-ghost btn-small">+ Add goal</button>
+      </div>
+      <button type="submit" class="btn-primary">Create challenge</button>
       <p id="nc-status" class="muted"></p>
     </form>
   `, {
     onMount() {
+      const editor = $("#goals-editor");
+      renderGoalsEditor(editor, seedGoals);
+      $("#add-goal").addEventListener("click", () => addEmptyGoalRow(editor));
       $("#new-challenge-form").addEventListener("submit", handleCreateChallenge);
     },
   });
+}
+
+function openEditGoalsForm() {
+  const ac = activeChallenge();
+  if (!ac) return;
+  if (ac.created_by && ac.created_by !== state.user.id) {
+    alert("Only the host of this challenge can edit its goals.");
+    return;
+  }
+  const goals = (ac.goals && ac.goals.length > 0)
+    ? ac.goals.map((g) => ({ ...g }))
+    : DEFAULT_GOALS.map((g) => ({ ...g, id: newGoalId() }));
+  openModal(`
+    <h2>Edit goals</h2>
+    <p class="muted">Change the wording, points, or list. New point values apply to future check-ins; past entries keep what was saved at the time.</p>
+    <form id="edit-goals-form">
+      <div id="goals-editor" class="goals-editor"></div>
+      <button type="button" id="add-goal" class="btn-ghost btn-small">+ Add goal</button>
+      <button type="submit" class="btn-primary" style="margin-top: 1rem;">Save changes</button>
+      <p id="eg-status" class="muted"></p>
+    </form>
+  `, {
+    onMount() {
+      const editor = $("#goals-editor");
+      renderGoalsEditor(editor, goals);
+      $("#add-goal").addEventListener("click", () => addEmptyGoalRow(editor));
+      $("#edit-goals-form").addEventListener("submit", handleSaveGoals);
+    },
+  });
+}
+
+function renderGoalsEditor(container, goals) {
+  container.innerHTML = "";
+  goals.forEach((g) => container.appendChild(makeGoalRow(g)));
+  if (goals.length === 0) addEmptyGoalRow(container);
+}
+
+function makeGoalRow(g) {
+  const row = document.createElement("div");
+  row.className = "goal-row";
+  row.dataset.id = g.id || newGoalId();
+  row.innerHTML = `
+    <input type="text"   class="goal-text"   maxlength="60" required value="${escapeHtml(g.text || "")}" placeholder="What's the goal?" />
+    <input type="number" class="goal-points" min="0" max="10" required value="${Number(g.points ?? 1)}" />
+    <button type="button" class="goal-remove" aria-label="Remove">×</button>
+  `;
+  row.querySelector(".goal-remove").addEventListener("click", () => row.remove());
+  return row;
+}
+
+function addEmptyGoalRow(container) {
+  container.appendChild(makeGoalRow({ id: newGoalId(), text: "", points: 1 }));
+}
+
+function collectGoals(container) {
+  return Array.from(container.querySelectorAll(".goal-row")).map((row) => ({
+    id: row.dataset.id,
+    text: row.querySelector(".goal-text").value.trim(),
+    points: clamp(parseInt(row.querySelector(".goal-points").value, 10) || 0, 0, 10),
+  })).filter((g) => g.text);
+}
+
+async function handleSaveGoals(e) {
+  e.preventDefault();
+  const goals = collectGoals($("#goals-editor"));
+  const status = $("#eg-status");
+  if (goals.length === 0) { status.textContent = "Add at least one goal."; return; }
+  status.textContent = "Saving…";
+  const { error } = await state.client
+    .from("challenges")
+    .update({ goals })
+    .eq("id", state.activeChallengeId);
+  if (error) { status.textContent = "Couldn't save: " + error.message; return; }
+  const c = state.challenges.find((x) => x.id === state.activeChallengeId);
+  if (c) c.goals = goals;
+  closeModal();
+  reseedDraftFromEditingDate();
+  renderApp();
 }
 
 function openJoinChallengeForm() {
@@ -1403,14 +1462,16 @@ async function handleCreateChallenge(e) {
   const name = $("#nc-name").value.trim();
   const date = $("#nc-date").value;
   const days = parseInt($("#nc-days").value, 10);
+  const goals = collectGoals($("#goals-editor"));
   const status = $("#nc-status");
   if (!name || !date || !days) return;
+  if (goals.length === 0) { status.textContent = "Add at least one goal."; return; }
   status.textContent = "Creating…";
 
   // Direct table inserts (no RPC, avoids schema-cache issues).
   const { data: ch, error: insErr } = await state.client
     .from("challenges")
-    .insert({ name, start_date: date, days, created_by: state.user.id })
+    .insert({ name, start_date: date, days, goals, created_by: state.user.id })
     .select("id")
     .single();
   if (insErr) { status.textContent = "Couldn't create: " + insErr.message; return; }
