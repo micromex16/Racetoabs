@@ -176,7 +176,7 @@ async function loadProfile() {
 async function loadChallenges() {
   const { data, error } = await state.client
     .from("challenges")
-    .select("id, name, start_date, days, invite_code, created_by, created_at")
+    .select("id, name, start_date, days, invite_code, created_by, goals, created_at")
     .order("start_date", { ascending: false });
   if (error) { console.error(error); state.challenges = []; return; }
   state.challenges = data || [];
@@ -1425,13 +1425,20 @@ async function handleSaveGoals(e) {
   const status = $("#eg-status");
   if (goals.length === 0) { status.textContent = "Add at least one goal."; return; }
   status.textContent = "Saving…";
-  const { error } = await state.client
+  const { data, error } = await state.client
     .from("challenges")
     .update({ goals })
-    .eq("id", state.activeChallengeId);
+    .eq("id", state.activeChallengeId)
+    .select("id, goals");
   if (error) { status.textContent = "Couldn't save: " + error.message; return; }
+  if (!data || data.length === 0) {
+    status.textContent = "Couldn't save — only the challenge host can edit its goals.";
+    return;
+  }
+  // Trust the row we just got back, not just the local intent.
+  const saved = data[0].goals || goals;
   const c = state.challenges.find((x) => x.id === state.activeChallengeId);
-  if (c) c.goals = goals;
+  if (c) c.goals = saved;
   closeModal();
   reseedDraftFromEditingDate();
   renderApp();
