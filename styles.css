@@ -1192,6 +1192,49 @@ button.link:hover { color: var(--teal-1); }
 .picker-tag.upcoming { background: rgba(167, 139, 250, 0.18); color: var(--lilac-1); }
 .picker-check { color: var(--blue-1); font-weight: 800; }
 
+/* Swipe a row left to uncover Remove. touch-action keeps vertical scrolling
+   native while the pointer handlers claim horizontal drags. */
+.picker-item {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.picker-item .picker-row {
+  position: relative;
+  width: 100%;
+  /* Opaque, or the Remove button behind shows through -- .picker-row.current
+     replaces the base colour with a translucent gradient. The gradient still
+     paints, now over this instead of whatever is behind the row. */
+  background-color: var(--surface-2);
+  transform: translateX(0);
+  transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+.picker-item.open .picker-row { transform: translateX(-92px); }
+.picker-item-action {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 92px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--danger);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.picker-item-action:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .picker-item .picker-row { transition: none; }
+}
+
 .picker-section {
   margin: 0.75rem 0 1rem;
   padding-top: 0.75rem;

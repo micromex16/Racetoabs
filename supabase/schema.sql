@@ -542,3 +542,45 @@ $$;
 
 revoke all on function public.join_challenge(text) from public;
 grant execute on function public.join_challenge(text) to authenticated;
+
+-- Leaving a challenge: drop your own membership, and if you were the last one
+-- out, delete the challenge itself (cascading its entries and messages). Runs
+-- as SECURITY DEFINER because the caller has no DELETE rights on either table,
+-- and because the "is anyone left?" count has to see rows the leaver can no
+-- longer read once their membership is gone.
+--
+-- Your entries are deliberately left in place while anyone else is still in the
+-- challenge: rejoining with the invite code restores your history, and the
+-- leaderboard already skips non-members.
+create or replace function public.leave_challenge(p_challenge uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  remaining int;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if p_challenge is null then raise exception 'Challenge is required'; end if;
+  if not is_challenge_member(p_challenge) then
+    raise exception 'You are not a member of that challenge';
+  end if;
+
+  delete from public.challenge_members
+   where challenge_id = p_challenge and user_id = auth.uid();
+
+  select count(*) into remaining
+    from public.challenge_members
+   where challenge_id = p_challenge;
+
+  if remaining = 0 then
+    delete from public.challenges where id = p_challenge;
+    return true;
+  end if;
+  return false;
+end;
+$$;
+
+revoke all on function public.leave_challenge(uuid) from public;
+grant execute on function public.leave_challenge(uuid) to authenticated;

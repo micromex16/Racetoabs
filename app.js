@@ -421,6 +421,12 @@ function isDuplicateDay(error) {
   return error.code === "23505" || /duplicate key/i.test(error.message || "");
 }
 
+// PostgREST reports an RPC the database doesn't have as a schema-cache miss.
+function isMissingFunction(error) {
+  return error.code === "PGRST202" ||
+    /could not find the function/i.test(error.message || "");
+}
+
 async function saveEntryRowUnmigrated(row) {
   const { data: existing, error: findErr } = await state.client
     .from("entries")
@@ -1326,13 +1332,17 @@ function openChallengePicker() {
     const isActive = c.id === state.activeChallengeId;
     const cls = classifyChallenge(c).status;
     return `
-      <button class="picker-row ${isActive ? "current" : ""}" data-cid="${c.id}">
-        <div class="picker-row-main">
-          <div class="picker-row-name">${escapeHtml(c.name)} ${cls === "past" ? '<span class="picker-tag past">past</span>' : cls === "upcoming" ? '<span class="picker-tag upcoming">upcoming</span>' : ''}</div>
-          <div class="picker-row-meta">${challengeRowMeta(c)}</div>
-        </div>
-        ${isActive ? '<span class="picker-check" aria-label="current">✓</span>' : ""}
-      </button>
+      <div class="picker-item" data-cid="${c.id}">
+        <button type="button" class="picker-item-action" data-cid="${c.id}"
+                aria-label="Remove ${escapeHtml(c.name)} from your challenges">Remove</button>
+        <button type="button" class="picker-row ${isActive ? "current" : ""}" data-cid="${c.id}">
+          <div class="picker-row-main">
+            <div class="picker-row-name">${escapeHtml(c.name)} ${cls === "past" ? '<span class="picker-tag past">past</span>' : cls === "upcoming" ? '<span class="picker-tag upcoming">upcoming</span>' : ''}</div>
+            <div class="picker-row-meta">${challengeRowMeta(c)}</div>
+          </div>
+          ${isActive ? '<span class="picker-check" aria-label="current">✓</span>' : ""}
+        </button>
+      </div>
     `;
   }).join("");
 
@@ -1359,13 +1369,7 @@ function openChallengePicker() {
     </div>
   `, {
     onMount() {
-      document.querySelectorAll(".picker-row").forEach((b) =>
-        b.addEventListener("click", async () => {
-          const cid = b.dataset.cid;
-          closeModal();
-          if (cid !== state.activeChallengeId) await setActiveChallenge(cid);
-        })
-      );
+      wireChallengeRows();
       $("#picker-new")?.addEventListener("click", openNewChallengeForm);
       $("#picker-join")?.addEventListener("click", openJoinChallengeForm);
       $("#copy-invite-btn")?.addEventListener("click", () => copyText(active.invite_code, "Code copied"));
@@ -1506,6 +1510,124 @@ function joinChallengeMessage(error) {
     return "No challenge with that code.";
   }
   return "Couldn't join: " + error.message;
+}
+
+// How far a row slides to uncover the Remove button. Matches .picker-item-action
+// in styles.css.
+const SWIPE_ACTION_WIDTH = 92;
+
+// Swipe a picker row left to uncover Remove. Tapping still switches challenge,
+// so a drag has to be told apart from a tap: any horizontal travel past a few
+// pixels claims the gesture, and vertical travel hands it back to the scroller.
+function wireChallengeRows() {
+  const items = Array.from(document.querySelectorAll(".picker-item"));
+  const closeOthers = (keep) =>
+    items.forEach((it) => { if (it !== keep) it.classList.remove("open"); });
+
+  for (const item of items) {
+    const row = item.querySelector(".picker-row");
+    const action = item.querySelector(".picker-item-action");
+    let startX = 0, startY = 0, offset = 0, tracking = false, swiped = false;
+
+    row.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      offset = item.classList.contains("open") ? -SWIPE_ACTION_WIDTH : 0;
+      tracking = true;
+      swiped = false;
+      row.style.transition = "none";
+    });
+
+    row.addEventListener("pointermove", (e) => {
+      if (!tracking) return;
+      const mx = e.clientX - startX;
+      const my = e.clientY - startY;
+      if (!swiped) {
+        if (Math.abs(my) > Math.abs(mx)) { tracking = false; return; } // scrolling
+        if (Math.abs(mx) < 8) return;                                  // jitter
+        swiped = true;
+        row.setPointerCapture?.(e.pointerId);
+      }
+      const base = item.classList.contains("open") ? -SWIPE_ACTION_WIDTH : 0;
+      offset = clamp(base + mx, -SWIPE_ACTION_WIDTH, 0);
+      row.style.transform = `translateX(${offset}px)`;
+    });
+
+    const settle = () => {
+      if (!tracking) return;
+      tracking = false;
+      row.style.transition = "";
+      row.style.transform = "";
+      if (!swiped) return;
+      const open = offset < -SWIPE_ACTION_WIDTH / 2;
+      item.classList.toggle("open", open);
+      if (open) closeOthers(item);
+    };
+    row.addEventListener("pointerup", settle);
+    row.addEventListener("pointercancel", settle);
+
+    row.addEventListener("click", async (e) => {
+      if (swiped) { e.preventDefault(); swiped = false; return; }
+      if (item.classList.contains("open")) { item.classList.remove("open"); return; }
+      const cid = item.dataset.cid;
+      closeModal();
+      if (cid !== state.activeChallengeId) await setActiveChallenge(cid);
+    });
+
+    // Without this the Remove button is unreachable for anyone not swiping:
+    // focusing it (keyboard, switch control) slides the row open first.
+    action.addEventListener("focus", () => { closeOthers(item); item.classList.add("open"); });
+    action.addEventListener("click", () => handleLeaveChallenge(item.dataset.cid));
+  }
+}
+
+async function handleLeaveChallenge(cid) {
+  const c = state.challenges.find((x) => x.id === cid);
+  if (!c) return;
+  const ok = confirm(
+    `Remove "${c.name}" from your challenges?\n\n` +
+    "Your check-ins are kept — rejoin with the invite code and your history " +
+    "comes back. If you're the last one in it, the challenge is deleted for good."
+  );
+  if (!ok) return;
+
+  const { data: deleted, error } = await state.client
+    .rpc("leave_challenge", { p_challenge: cid });
+  if (error) {
+    // Deploying the client ahead of the schema shouldn't look like a crash.
+    alert(isMissingFunction(error)
+      ? "Removing challenges needs a database update — re-run supabase/schema.sql, then try again."
+      : "Couldn't remove: " + error.message);
+    return;
+  }
+
+  const wasActive = cid === state.activeChallengeId;
+  if (wasActive) localStorage.removeItem(ACTIVE_KEY(state.user.id));
+  await loadChallenges();
+
+  if (state.challenges.length === 0) {
+    state.activeChallengeId = null;
+    state.entries = []; state.messages = []; state.profiles = [];
+    closeModal();
+    show("view-challenges");
+    return;
+  }
+
+  if (wasActive) {
+    state.activeChallengeId = null;
+    state.entries = []; state.messages = []; state.profiles = [];
+    state.viewingUserId = null;
+    state.editingDate = todayISO();
+    await pickInitialActiveChallenge();
+    await loadActiveChallengeData();
+    await resubscribeMessages();
+    renderApp();
+  }
+
+  closeModal();
+  openChallengePicker();
+  flashStatus(deleted ? `Deleted "${c.name}".` : `Removed "${c.name}".`);
 }
 
 function openJoinChallengeForm() {

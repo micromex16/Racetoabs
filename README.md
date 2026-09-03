@@ -15,6 +15,7 @@ A 30-day accountability challenge. Sign in, tick off your daily check-ins, watch
 - **Streaks** — consecutive logged days
 - **Group chat** with image upload and realtime updates so everyone can cheer, vent, and show off
 - **Cross-device** — log from phone or laptop, all synced
+- **Tidy your list** — swipe a challenge left in the picker to remove a finished round
 
 ## Setup (one time, ~5 min)
 
@@ -86,6 +87,16 @@ python3 -m http.server 8000
 ```
 
 **Deploy:** push the repo to GitHub and connect it to [Netlify](https://netlify.com), [Vercel](https://vercel.com), or [Cloudflare Pages](https://pages.cloudflare.com). No build step.
+
+## Removing a challenge
+
+In the challenge picker, swipe a row left to uncover **Remove** (or tab to the
+button, which slides the row open). Removing takes the challenge off *your*
+list — everyone else keeps theirs.
+
+Your check-ins are kept, so rejoining with the invite code brings your history
+back. When the last member leaves, the challenge is deleted for good, along with
+its entries and chat.
 
 ## Who can see what
 
