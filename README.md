@@ -5,7 +5,9 @@ A 30-day accountability challenge. Sign in, tick off your daily check-ins, watch
 ## What it does
 
 - **Daily check-in** — 9 yes/no items including a custom goal each user sets; max 18 pts/day, 540 pts over 30 days
-- **Private challenges** — you only ever see the ones you created or were invited to
+- **Private by default** — you only ever see the challenges you created or joined,
+  the people in them, and their photos. Nothing is visible to an account that
+  hasn't been let in.
 - **Shared start date** — everyone races the same calendar window
 - **Live leaderboard** — sorted by total challenge points
 - **Tap any name** on the leaderboard to view that user's daily logs read-only
@@ -84,6 +86,22 @@ python3 -m http.server 8000
 ```
 
 **Deploy:** push the repo to GitHub and connect it to [Netlify](https://netlify.com), [Vercel](https://vercel.com), or [Cloudflare Pages](https://pages.cloudflare.com). No build step.
+
+## Who can see what
+
+Every table is gated by row-level security, so this holds no matter what the
+client asks for:
+
+| | Visible to |
+|---|---|
+| Challenge name, dates, invite code | its members only |
+| Daily entries + points | its members only |
+| Group chat + photos | its members only (plus whoever uploaded the photo) |
+| Display name + custom goal | yourself, and people you share a challenge with |
+
+A signed-in account that hasn't joined anything sees nothing but its own
+profile — no challenge list, no names, no photos. Joining requires the 6-character
+invite code; knowing a challenge's internal id is not enough.
 
 ## Daily checklist
 

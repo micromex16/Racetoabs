@@ -153,6 +153,7 @@ insert into storage.buckets (id, name, public)
   values ('chat-images', 'chat-images', false)
   on conflict (id) do nothing;
 
+-- NOTE: re-scoped further down, once messages carry a challenge_id.
 drop policy if exists "chat_images_read_auth" on storage.objects;
 create policy "chat_images_read_auth" on storage.objects
   for select to authenticated using (bucket_id = 'chat-images');
@@ -306,6 +307,27 @@ $$;
 revoke all on function public.is_challenge_member(uuid) from public;
 grant execute on function public.is_challenge_member(uuid) to authenticated;
 
+-- Same trick for "do these two people share a challenge?", used to keep display
+-- names from leaking to strangers.
+create or replace function public.shares_challenge_with(other uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.challenge_members mine
+    join public.challenge_members theirs on theirs.challenge_id = mine.challenge_id
+    where mine.user_id = auth.uid()
+      and theirs.user_id = other
+  );
+$$;
+
+revoke all on function public.shares_challenge_with(uuid) from public;
+grant execute on function public.shares_challenge_with(uuid) to authenticated;
+
 alter table public.challenges        enable row level security;
 alter table public.challenge_members enable row level security;
 
@@ -339,7 +361,18 @@ create policy "members delete self" on public.challenge_members
 
 revoke insert on public.challenge_members from authenticated;
 
--- Re-scope entries + messages so callers only see challenges they're in.
+-- Re-scope profiles, entries + messages so callers only see challenges they're
+-- in. These have to be restated here rather than where the tables are defined,
+-- because they lean on helpers that don't exist until challenges do.
+
+-- A display name is visible only to yourself and to people you actually share a
+-- challenge with. Previously every authenticated user could read the whole
+-- profiles table -- every member's name and custom goal, challenge or not.
+drop policy if exists "profiles read" on public.profiles;
+create policy "profiles read" on public.profiles
+  for select to authenticated
+  using (id = auth.uid() or shares_challenge_with(id));
+
 drop policy if exists "entries read"        on public.entries;
 drop policy if exists "entries insert own"  on public.entries;
 drop policy if exists "entries update own"  on public.entries;
@@ -349,6 +382,25 @@ create policy "entries insert own" on public.entries
   for insert to authenticated with check (auth.uid() = user_id and is_challenge_member(challenge_id));
 create policy "entries update own" on public.entries
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id and is_challenge_member(challenge_id));
+
+-- Chat photos were readable by anyone with an account: the storage policy only
+-- checked the bucket. Scope them to the uploader plus the members of whatever
+-- challenge the owning message belongs to. The uploader clause matters because
+-- the file is uploaded before its message row exists.
+drop policy if exists "chat_images_read_auth"    on storage.objects;
+drop policy if exists "chat_images_read_members" on storage.objects;
+create policy "chat_images_read_members" on storage.objects
+  for select to authenticated using (
+    bucket_id = 'chat-images'
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or exists (
+        select 1 from public.messages m
+        where m.image_path = storage.objects.name
+          and public.is_challenge_member(m.challenge_id)
+      )
+    )
+  );
 
 drop policy if exists "messages read"       on public.messages;
 drop policy if exists "messages insert own" on public.messages;
