@@ -395,17 +395,30 @@ async function handleSaveEntry() {
 // different challenge, wiping that day from the other leaderboard. Aim at the
 // per-challenge constraint instead, and if the database hasn't been migrated
 // yet, fall back to an explicitly challenge-scoped write rather than clobbering.
+const LEGACY_DAY_LIMIT_HELP =
+  "this database still allows only one check-in per day across all challenges, " +
+  "so this day is already logged in a different one. Re-run supabase/schema.sql " +
+  "to fix it.";
+
 async function saveEntryRow(row) {
   const { error } = await state.client
     .from("entries")
     .upsert(row, { onConflict: "challenge_id,user_id,date" });
-  if (!error || !isMissingConflictTarget(error)) return error;
-  return saveEntryRowUnmigrated(row);
+  if (!error) return null;
+  if (isMissingConflictTarget(error)) return saveEntryRowUnmigrated(row);
+  // The per-challenge target resolved, but a leftover (user_id, date) rule
+  // rejected the row anyway -- a half-migrated database.
+  if (isDuplicateDay(error)) return { ...error, message: LEGACY_DAY_LIMIT_HELP };
+  return error;
 }
 
 function isMissingConflictTarget(error) {
   return error.code === "42P10" ||
     /no unique or exclusion constraint/i.test(error.message || "");
+}
+
+function isDuplicateDay(error) {
+  return error.code === "23505" || /duplicate key/i.test(error.message || "");
 }
 
 async function saveEntryRowUnmigrated(row) {
@@ -427,12 +440,8 @@ async function saveEntryRowUnmigrated(row) {
   }
 
   const { error } = await state.client.from("entries").insert(row);
-  if (error && (error.code === "23505" || /duplicate key/i.test(error.message || ""))) {
-    return {
-      ...error,
-      message: "your database still allows only one entry per day across all " +
-        "challenges. Re-run supabase/schema.sql to fix it.",
-    };
+  if (error && isDuplicateDay(error)) {
+    return { ...error, message: LEGACY_DAY_LIMIT_HELP };
   }
   return error;
 }

@@ -249,21 +249,34 @@ create index if not exists messages_challenge_idx on public.messages(challenge_i
 -- Scope entry uniqueness to the challenge.
 --
 -- The original single-challenge schema declared `unique (user_id, date)`, which
--- survived the multi-challenge migration above. That constraint spans every
+-- survived the multi-challenge migration above. That rule spans every
 -- challenge, so a user could only ever hold ONE row per calendar day in the
 -- whole table: saving a day from challenge B did ON CONFLICT (user_id, date)
 -- DO UPDATE against the row that belonged to challenge A, re-stamping its
 -- challenge_id. The day silently disappeared from challenge A's leaderboard and
--- that member's total appeared to reset.
+-- that member's total appeared to reset. Once the client started aiming at the
+-- per-challenge target instead, the same leftover rule showed up as a plain
+-- refusal: whichever challenge already owned today's row could save, and every
+-- other challenge got a duplicate-key error.
 --
--- Drop any unique constraint on exactly (user_id, date) and replace it with a
--- per-challenge one. Because the old constraint was strictly narrower, no
--- duplicates can exist and the new constraint always applies cleanly.
+-- The rule can exist in two shapes and BOTH have to go, which is why this looks
+-- over-thorough: a unique CONSTRAINT (what `unique (user_id, date)` creates),
+-- and a bare unique INDEX with no constraint behind it (what a hand-written
+-- `create unique index` leaves). Dropping only the constraint leaves the index
+-- still enforcing one row per user per day, and the new per-challenge
+-- constraint sitting next to it hides the problem until someone tries to log
+-- the same day in a second challenge.
+--
+-- The old rule is strictly narrower than the new one, so no duplicates can
+-- exist and the replacement always applies cleanly.
 -- ─────────────────────────────────────────────────────────────────────────────
 do $$
 declare
   c record;
+  i record;
+  leftover text;
 begin
+  -- Shape 1: unique constraints on exactly (user_id, date).
   for c in
     select con.conname
     from pg_constraint con
@@ -279,6 +292,31 @@ begin
     execute format('alter table public.entries drop constraint %I', c.conname);
   end loop;
 
+  -- Shape 2: unique indexes on exactly (user_id, date) with no constraint
+  -- behind them. Partial and expression indexes are left alone -- they are not
+  -- the blanket rule we are undoing.
+  for i in
+    select cls.relname
+    from pg_index idx
+    join pg_class cls on cls.oid = idx.indexrelid
+    where idx.indrelid = 'public.entries'::regclass
+      and idx.indisunique
+      and idx.indnkeyatts = 2
+      and idx.indpred is null
+      and idx.indexprs is null
+      and not exists (
+        select 1 from pg_constraint con where con.conindid = idx.indexrelid
+      )
+      and (
+        select array_agg(att.attname::text order by att.attname)
+        from unnest(string_to_array(idx.indkey::text, ' ')::smallint[]) as k
+        join pg_attribute att
+          on att.attrelid = idx.indrelid and att.attnum = k
+      ) = array['date', 'user_id']
+  loop
+    execute format('drop index public.%I', i.relname);
+  end loop;
+
   if not exists (
     select 1 from pg_constraint
     where conrelid = 'public.entries'::regclass
@@ -287,6 +325,29 @@ begin
     alter table public.entries
       add constraint entries_challenge_user_date_key
       unique (challenge_id, user_id, date);
+  end if;
+
+  -- Fail loudly rather than leaving a half-migrated table that looks fine until
+  -- someone logs the same day in a second challenge.
+  select string_agg(quote_ident(cls.relname), ', ') into leftover
+  from pg_index idx
+  join pg_class cls on cls.oid = idx.indexrelid
+  where idx.indrelid = 'public.entries'::regclass
+    and idx.indisunique
+    and idx.indnkeyatts = 2
+    and idx.indpred is null
+    and idx.indexprs is null
+    and (
+      select array_agg(att.attname::text order by att.attname)
+      from unnest(string_to_array(idx.indkey::text, ' ')::smallint[]) as k
+      join pg_attribute att
+        on att.attrelid = idx.indrelid and att.attnum = k
+    ) = array['date', 'user_id'];
+
+  if leftover is not null then
+    raise exception
+      'entries still has a (user_id, date) uniqueness rule: %. Members cannot log the same day in two challenges until it is removed.',
+      leftover;
   end if;
 end $$;
 
