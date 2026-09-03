@@ -1490,6 +1490,15 @@ async function handleSaveGoals(e) {
   renderApp();
 }
 
+// join_challenge() raises for a code that matches nothing; everything else is
+// an unexpected failure worth showing verbatim.
+function joinChallengeMessage(error) {
+  if (/no challenge with that code/i.test(error.message || "")) {
+    return "No challenge with that code.";
+  }
+  return "Couldn't join: " + error.message;
+}
+
 function openJoinChallengeForm() {
   openModal(`
     <h2>Join a challenge</h2>
@@ -1521,24 +1530,18 @@ async function handleCreateChallenge(e) {
   if (goals.length === 0) { status.textContent = "Add at least one goal."; return; }
   status.textContent = "Creating…";
 
-  // Direct table inserts (no RPC, avoids schema-cache issues).
+  // Challenges are readable only by their members, so creating one has to run
+  // through the SECURITY DEFINER RPC: it inserts the challenge and the
+  // creator's membership together and hands back the row we can't yet select.
   const { data: ch, error: insErr } = await state.client
-    .from("challenges")
-    .insert({ name, start_date: date, days, goals, created_by: state.user.id })
-    .select("id")
-    .single();
+    .rpc("create_challenge", {
+      p_name: name, p_start_date: date, p_days: days, p_goals: goals,
+    });
   if (insErr) { status.textContent = "Couldn't create: " + insErr.message; return; }
-
-  const { error: memErr } = await state.client
-    .from("challenge_members")
-    .insert({ challenge_id: ch.id, user_id: state.user.id });
-  if (memErr && !/duplicate/i.test(memErr.message)) {
-    status.textContent = "Couldn't join own challenge: " + memErr.message; return;
-  }
 
   closeModal();
   await loadChallenges();
-  await setActiveChallenge(ch.id);
+  await setActiveChallenge(ch?.id);
   show("view-app");
 }
 
@@ -1549,24 +1552,15 @@ async function handleJoinChallenge(e) {
   if (!code) return;
   status.textContent = "Joining…";
 
-  const { data: ch, error: selErr } = await state.client
-    .from("challenges")
-    .select("id")
-    .eq("invite_code", code)
-    .maybeSingle();
-  if (selErr) { status.textContent = "Couldn't look up code: " + selErr.message; return; }
-  if (!ch) { status.textContent = "No challenge with that code."; return; }
-
-  const { error: memErr } = await state.client
-    .from("challenge_members")
-    .insert({ challenge_id: ch.id, user_id: state.user.id });
-  if (memErr && !/duplicate/i.test(memErr.message)) {
-    status.textContent = "Couldn't join: " + memErr.message; return;
-  }
+  // The code names a challenge this user can't see yet, so the lookup and the
+  // membership insert both happen inside join_challenge().
+  const { data: ch, error: joinErr } = await state.client
+    .rpc("join_challenge", { p_code: code });
+  if (joinErr) { status.textContent = joinChallengeMessage(joinErr); return; }
 
   closeModal();
   await loadChallenges();
-  await setActiveChallenge(ch.id);
+  await setActiveChallenge(ch?.id);
   show("view-app");
 }
 
@@ -1587,21 +1581,12 @@ async function maybeAutoJoinFromUrl() {
   url.searchParams.delete("join");
   history.replaceState({}, "", url.toString());
 
-  const { data: ch } = await state.client
-    .from("challenges")
-    .select("id")
-    .eq("invite_code", code.toUpperCase())
-    .maybeSingle();
-  if (!ch) { alert("That invite code doesn't match any challenge."); return; }
+  const { data: ch, error: joinErr } = await state.client
+    .rpc("join_challenge", { p_code: code });
+  if (joinErr) { alert(joinChallengeMessage(joinErr)); return; }
 
-  const { error: memErr } = await state.client
-    .from("challenge_members")
-    .insert({ challenge_id: ch.id, user_id: state.user.id });
-  if (memErr && !/duplicate/i.test(memErr.message)) {
-    console.error(memErr); return;
-  }
   await loadChallenges();
-  if (ch.id) await setActiveChallenge(ch.id);
+  if (ch?.id) await setActiveChallenge(ch.id);
 }
 
 // ─── View switching ───────────────────────────────────────────────────────

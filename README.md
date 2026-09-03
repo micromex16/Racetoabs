@@ -5,6 +5,7 @@ A 30-day accountability challenge. Sign in, tick off your daily check-ins, watch
 ## What it does
 
 - **Daily check-in** — 9 yes/no items including a custom goal each user sets; max 18 pts/day, 540 pts over 30 days
+- **Private challenges** — you only ever see the ones you created or were invited to
 - **Shared start date** — everyone races the same calendar window
 - **Live leaderboard** — sorted by total challenge points
 - **Tap any name** on the leaderboard to view that user's daily logs read-only
@@ -106,9 +107,21 @@ To rebalance, edit the `QUESTIONS` array at the top of `app.js`.
 
 ## How users join
 
+Challenges are private. A signed-in user sees only the challenges they created
+or joined with an invite code — never anyone else's, and not their names,
+schedules, or codes.
+
 1. Visit the site on their iPhone.
 2. Tap **Create an account** → enter email + password → tap **Create account**. They're signed in immediately (no email confirmation).
-3. Pick a display name + their custom goal. That's it — they're in.
+3. Pick a display name + their custom goal.
+4. They land on an empty **Your challenges** screen. To get in, either:
+   - open the **invite link** someone sent them (`?join=CODE` pulls them straight in after sign-in), or
+   - tap **Join with code** and enter the 6-character code, or
+   - tap **New challenge** to start their own.
+
+Grab a code to share from the challenge pill in the header → **Copy code** or
+**Copy link**. Only members of a challenge can see its code, so an invite has to
+come from someone already in it.
 
 > **Supabase setup tip:** disable email confirmation under
 > **Authentication → Providers → Email → "Confirm email"** so new users

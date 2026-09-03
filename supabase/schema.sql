@@ -309,31 +309,35 @@ grant execute on function public.is_challenge_member(uuid) to authenticated;
 alter table public.challenges        enable row level security;
 alter table public.challenge_members enable row level security;
 
--- Any authenticated user can read challenges (so they can look up by invite
--- code). The actual sensitive data — entries and messages — stays scoped to
--- members via is_challenge_member().
+-- A challenge is visible only to the people who actually joined it. An earlier
+-- revision let every authenticated user select every challenge so the client
+-- could look up an invite code directly -- which also exposed every group's
+-- name, schedule and, worst of all, its invite_code to anyone with an account.
+-- Code lookup now happens inside join_challenge() (SECURITY DEFINER), so it can
+-- find a challenge the caller cannot yet see without opening the table up.
 drop policy if exists "challenges read members"      on public.challenges;
 drop policy if exists "challenges read all auth"     on public.challenges;
 drop policy if exists "challenges insert own"        on public.challenges;
 drop policy if exists "challenges update by creator" on public.challenges;
-create policy "challenges read all auth" on public.challenges
-  for select to authenticated using (true);
+create policy "challenges read members" on public.challenges
+  for select to authenticated using (is_challenge_member(id));
 create policy "challenges insert own" on public.challenges
   for insert to authenticated with check (created_by = auth.uid());
 create policy "challenges update by creator" on public.challenges
   for update to authenticated using (created_by = auth.uid()) with check (created_by = auth.uid());
 
+-- Membership is not self-serve: with a bare `user_id = auth.uid()` check,
+-- anyone holding a challenge's UUID could add themselves to it. Joining goes
+-- through join_challenge(), which demands the invite code.
 drop policy if exists "members read peers"   on public.challenge_members;
 drop policy if exists "members insert self"  on public.challenge_members;
 drop policy if exists "members delete self"  on public.challenge_members;
 create policy "members read peers" on public.challenge_members
   for select to authenticated using (is_challenge_member(challenge_id));
-create policy "members insert self" on public.challenge_members
-  for insert to authenticated with check (user_id = auth.uid());
 create policy "members delete self" on public.challenge_members
   for delete to authenticated using (user_id = auth.uid());
 
-grant insert on public.challenge_members to authenticated;
+revoke insert on public.challenge_members from authenticated;
 
 -- Re-scope entries + messages so callers only see challenges they're in.
 drop policy if exists "entries read"        on public.entries;
@@ -356,54 +360,70 @@ create policy "messages insert own" on public.messages
 -- ─────────────────────────────────────────────────────────────────────────────
 -- RPCs to create a challenge or join by invite code (both bypass RLS safely).
 -- ─────────────────────────────────────────────────────────────────────────────
-create or replace function public.create_challenge(p_name text, p_start_date date, p_days int default 30)
-returns uuid
+-- Both RPCs are SECURITY DEFINER: they are the only way in, so they can reach
+-- past the members-only SELECT policy to create a row the caller isn't yet a
+-- member of, or to resolve an invite code for a challenge they cannot see.
+-- Each returns the full challenges row so the client never needs a broad read.
+drop function if exists public.create_challenge(text, date, int);
+drop function if exists public.create_challenge(text, date, int, jsonb);
+create function public.create_challenge(
+  p_name text,
+  p_start_date date,
+  p_days int default 30,
+  p_goals jsonb default '[]'::jsonb
+)
+returns public.challenges
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  cid uuid;
+  ch public.challenges;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if p_name is null or length(trim(p_name)) = 0 then raise exception 'Name is required'; end if;
-  if p_days < 1 or p_days > 365 then raise exception 'Days must be between 1 and 365'; end if;
+  if p_days is null or p_days < 1 or p_days > 365 then raise exception 'Days must be between 1 and 365'; end if;
   if p_start_date is null then raise exception 'Start date is required'; end if;
+  if p_goals is not null and jsonb_typeof(p_goals) <> 'array' then
+    raise exception 'Goals must be a JSON array';
+  end if;
 
-  insert into public.challenges (name, start_date, days, created_by)
-    values (trim(p_name), p_start_date, p_days, auth.uid())
-    returning id into cid;
+  insert into public.challenges (name, start_date, days, goals, created_by)
+    values (trim(p_name), p_start_date, p_days,
+            coalesce(p_goals, '[]'::jsonb), auth.uid())
+    returning * into ch;
 
-  insert into public.challenge_members (challenge_id, user_id) values (cid, auth.uid());
-  return cid;
+  insert into public.challenge_members (challenge_id, user_id) values (ch.id, auth.uid());
+  return ch;
 end;
 $$;
 
-revoke all on function public.create_challenge(text, date, int) from public;
-grant execute on function public.create_challenge(text, date, int) to authenticated;
+revoke all on function public.create_challenge(text, date, int, jsonb) from public;
+grant execute on function public.create_challenge(text, date, int, jsonb) to authenticated;
 
-create or replace function public.join_challenge(p_code text)
-returns uuid
+drop function if exists public.join_challenge(text);
+create function public.join_challenge(p_code text)
+returns public.challenges
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  cid uuid;
+  ch public.challenges;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
   if p_code is null or length(trim(p_code)) = 0 then raise exception 'Code is required'; end if;
 
-  select id into cid from public.challenges where invite_code = upper(trim(p_code));
-  if cid is null then
+  select * into ch from public.challenges where invite_code = upper(trim(p_code));
+  if ch.id is null then
     raise exception 'No challenge with that code';
   end if;
 
   insert into public.challenge_members (challenge_id, user_id)
-    values (cid, auth.uid())
+    values (ch.id, auth.uid())
     on conflict do nothing;
 
-  return cid;
+  return ch;
 end;
 $$;
 
