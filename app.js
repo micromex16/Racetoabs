@@ -373,9 +373,7 @@ async function handleSaveEntry() {
     answers,
     points,
   };
-  const { error } = await state.client
-    .from("entries")
-    .upsert(row, { onConflict: "user_id,date" });
+  const error = await saveEntryRow(row);
 
   state.saving = false;
   btn.disabled = false;
@@ -389,6 +387,54 @@ async function handleSaveEntry() {
   flashStatus(`Saved. +${points} pts for ${dayLabel}.`);
   await loadActiveChallengeData();
   renderApp();
+}
+
+// Entries are unique per (challenge, user, day). The pre-multi-challenge schema
+// constrained them per (user, day) across the whole table, so upserting on that
+// target overwrote — and re-stamped the challenge_id of — the row belonging to a
+// different challenge, wiping that day from the other leaderboard. Aim at the
+// per-challenge constraint instead, and if the database hasn't been migrated
+// yet, fall back to an explicitly challenge-scoped write rather than clobbering.
+async function saveEntryRow(row) {
+  const { error } = await state.client
+    .from("entries")
+    .upsert(row, { onConflict: "challenge_id,user_id,date" });
+  if (!error || !isMissingConflictTarget(error)) return error;
+  return saveEntryRowUnmigrated(row);
+}
+
+function isMissingConflictTarget(error) {
+  return error.code === "42P10" ||
+    /no unique or exclusion constraint/i.test(error.message || "");
+}
+
+async function saveEntryRowUnmigrated(row) {
+  const { data: existing, error: findErr } = await state.client
+    .from("entries")
+    .select("id")
+    .eq("challenge_id", row.challenge_id)
+    .eq("user_id", row.user_id)
+    .eq("date", row.date)
+    .maybeSingle();
+  if (findErr) return findErr;
+
+  if (existing) {
+    const { error } = await state.client
+      .from("entries")
+      .update({ answers: row.answers, points: row.points })
+      .eq("id", existing.id);
+    return error;
+  }
+
+  const { error } = await state.client.from("entries").insert(row);
+  if (error && (error.code === "23505" || /duplicate key/i.test(error.message || ""))) {
+    return {
+      ...error,
+      message: "your database still allows only one entry per day across all " +
+        "challenges. Re-run supabase/schema.sql to fix it.",
+    };
+  }
+  return error;
 }
 
 function flashStatus(msg) {

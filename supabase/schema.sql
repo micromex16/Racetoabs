@@ -30,8 +30,12 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists custom_goal text;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Entries: one row per (user, date). Answers are stored as a JSON object of
--- { question_id: boolean }. Points are computed and stored on save.
+-- Entries: one row per (challenge, user, date). Answers are stored as a JSON
+-- object of { question_id: boolean }. Points are computed and stored on save.
+--
+-- Uniqueness is deliberately NOT declared here: challenge_id is added further
+-- down (multi-challenge migration), so the real constraint --
+-- unique (challenge_id, user_id, date) -- is created alongside it.
 -- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.entries (
   id uuid primary key default gen_random_uuid(),
@@ -40,8 +44,7 @@ create table if not exists public.entries (
   answers jsonb not null,
   points int not null check (points >= 0),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (user_id, date)
+  updated_at timestamptz not null default now()
 );
 
 create index if not exists entries_date_idx on public.entries(date);
@@ -240,6 +243,51 @@ do $$ begin alter table public.messages alter column challenge_id set not null; 
 
 create index if not exists entries_challenge_idx  on public.entries(challenge_id);
 create index if not exists messages_challenge_idx on public.messages(challenge_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Scope entry uniqueness to the challenge.
+--
+-- The original single-challenge schema declared `unique (user_id, date)`, which
+-- survived the multi-challenge migration above. That constraint spans every
+-- challenge, so a user could only ever hold ONE row per calendar day in the
+-- whole table: saving a day from challenge B did ON CONFLICT (user_id, date)
+-- DO UPDATE against the row that belonged to challenge A, re-stamping its
+-- challenge_id. The day silently disappeared from challenge A's leaderboard and
+-- that member's total appeared to reset.
+--
+-- Drop any unique constraint on exactly (user_id, date) and replace it with a
+-- per-challenge one. Because the old constraint was strictly narrower, no
+-- duplicates can exist and the new constraint always applies cleanly.
+-- ─────────────────────────────────────────────────────────────────────────────
+do $$
+declare
+  c record;
+begin
+  for c in
+    select con.conname
+    from pg_constraint con
+    where con.conrelid = 'public.entries'::regclass
+      and con.contype = 'u'
+      and (
+        select array_agg(att.attname::text order by att.attname)
+        from unnest(con.conkey) as k
+        join pg_attribute att
+          on att.attrelid = con.conrelid and att.attnum = k
+      ) = array['date', 'user_id']
+  loop
+    execute format('alter table public.entries drop constraint %I', c.conname);
+  end loop;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.entries'::regclass
+      and conname = 'entries_challenge_user_date_key'
+  ) then
+    alter table public.entries
+      add constraint entries_challenge_user_date_key
+      unique (challenge_id, user_id, date);
+  end if;
+end $$;
 
 -- Helper for RLS: SECURITY DEFINER avoids recursing through challenge_members.
 create or replace function public.is_challenge_member(cid uuid)

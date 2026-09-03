@@ -53,6 +53,25 @@ The app uses email **magic links**. The link in the email needs to point back to
 
 The anon key is safe to ship to the browser — RLS in `schema.sql` controls what users can read/write.
 
+## Upgrading an existing project
+
+`supabase/schema.sql` is idempotent and carries its own migrations, so whenever
+you pull new code, paste it into **SQL Editor → New query → Run** again. Your
+data is left alone.
+
+> **If you were running the app before per-challenge entries landed, re-run it
+> now.** The original schema declared `unique (user_id, date)` on `entries`,
+> which spanned *every* challenge — a member could only ever hold one row per
+> calendar day in the whole table. Saving a day from one challenge overwrote the
+> row belonging to another and re-stamped its `challenge_id`, so that day
+> vanished from the other leaderboard and the member's total looked like it had
+> reset. The migration replaces that with
+> `unique (challenge_id, user_id, date)`.
+>
+> Days that were already re-stamped stay attached to whichever challenge saved
+> them last; re-save them from the correct challenge to put them back. Once
+> migrated, saving in one challenge never touches another.
+
 ## Run it
 
 The app is three static files (`index.html`, `styles.css`, `app.js`) plus `config.js`. It needs to be served over HTTP (not opened as `file://`) for magic-link auth to work.
