@@ -1,0 +1,742 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://simroom.local/room.schema.json",
+  "title": "SimRoom room.json",
+  "description": "The entire configuration of one sim room. Lives at %APPDATA%\\SimRoom\\room.json. Image paths are relative to the assets/ folder next to it.",
+  "type": "object",
+  "required": [
+    "version",
+    "room",
+    "tiles"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "description": "Schema version. Always 1 for now."
+    },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Room name shown in the header."
+        },
+        "tagline": {
+          "type": "string",
+          "maxLength": 140,
+          "default": ""
+        },
+        "namePosition": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "default": "left"
+        },
+        "nameSize": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 160,
+          "default": 56,
+          "description": "Room name size in px at 1080p (scales with screen)."
+        },
+        "showName": {
+          "type": "boolean",
+          "default": true,
+          "description": "false = logo only."
+        }
+      }
+    },
+    "logo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "PNG/SVG file in assets/, e.g. \"logo.png\"."
+        },
+        "position": {
+          "enum": [
+            "top-left",
+            "top-center",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "watermark"
+          ],
+          "default": "top-left"
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 600,
+          "default": 88,
+          "description": "Logo height in px at 1080p (watermark: width is 60% of screen max)."
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        }
+      },
+      "default": {}
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "show": {
+          "type": "boolean",
+          "default": true
+        },
+        "format": {
+          "enum": [
+            "12h",
+            "24h"
+          ],
+          "default": "12h"
+        },
+        "showDate": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "default": {}
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "string",
+          "default": "clubhouse",
+          "description": "Id of a built-in preset (clubhouse, cinema, arcade, sonoran, metal, black) or of a theme in custom[]."
+        },
+        "custom": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/theme"
+          },
+          "default": []
+        }
+      },
+      "default": {}
+    },
+    "tileStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Global look of every tile.",
+      "properties": {
+        "radius": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64,
+          "default": 18
+        },
+        "border": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8,
+          "default": 2,
+          "description": "Border width in px; 0 = none."
+        },
+        "shadow": {
+          "type": "boolean",
+          "default": true
+        },
+        "hoverGlow": {
+          "type": "boolean",
+          "default": true
+        },
+        "labelSize": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 72,
+          "default": 28,
+          "description": "Tile label size in px at 1080p. Never below 24."
+        }
+      },
+      "default": {}
+    },
+    "grid": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 12,
+          "default": 6
+        },
+        "gap": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64,
+          "default": 22
+        }
+      },
+      "default": {}
+    },
+    "tiles": {
+      "type": "array",
+      "description": "Home-screen tiles in display order. Folder tiles hold their own tiles[].",
+      "items": {
+        "$ref": "#/definitions/tile"
+      }
+    },
+    "displays": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Phase 4. Role for each monitor, keyed by a stable display id.",
+      "properties": {
+        "assignments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/displayAssignment"
+          },
+          "default": {}
+        }
+      },
+      "default": {}
+    },
+    "idle": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Phase 5. Ambient screen after inactivity.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "minutes": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 240,
+          "default": 10
+        },
+        "folder": {
+          "type": "string",
+          "default": "slideshow",
+          "description": "Sub-folder of assets/ with ambient photos."
+        },
+        "interval": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 600,
+          "default": 12,
+          "description": "Seconds per photo."
+        }
+      },
+      "default": {}
+    },
+    "hotkeys": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Electron accelerator strings, e.g. \"Ctrl+Alt+Home\".",
+      "properties": {
+        "home": {
+          "type": "string",
+          "default": "Ctrl+Alt+Home"
+        },
+        "editor": {
+          "type": "string",
+          "default": "Ctrl+E"
+        }
+      },
+      "default": {}
+    },
+    "startup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start SimRoom when Windows signs in."
+        },
+        "fullscreen": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "default": {}
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pinHash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "SHA-256 of the 4-digit PIN guarding Exit to Windows and the editor. null = no PIN. Set it from the editor, not by hand."
+        }
+      },
+      "default": {}
+    }
+  },
+  "definitions": {
+    "color": {
+      "type": "string",
+      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "description": "Hex color, e.g. #1f5238."
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "colors"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "colors": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "background",
+            "tile",
+            "tileHover",
+            "text",
+            "muted",
+            "accent",
+            "border"
+          ],
+          "properties": {
+            "background": {
+              "$ref": "#/definitions/color"
+            },
+            "tile": {
+              "$ref": "#/definitions/color"
+            },
+            "tileHover": {
+              "$ref": "#/definitions/color"
+            },
+            "text": {
+              "$ref": "#/definitions/color"
+            },
+            "muted": {
+              "$ref": "#/definitions/color"
+            },
+            "accent": {
+              "$ref": "#/definitions/color"
+            },
+            "border": {
+              "$ref": "#/definitions/color"
+            }
+          }
+        },
+        "fonts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "display": {
+              "$ref": "#/definitions/font"
+            },
+            "body": {
+              "$ref": "#/definitions/font"
+            }
+          }
+        },
+        "background": {
+          "$ref": "#/definitions/background"
+        }
+      }
+    },
+    "font": {
+      "enum": [
+        "Inter",
+        "Oswald",
+        "Bebas Neue",
+        "Montserrat",
+        "Playfair Display",
+        "Roboto Condensed",
+        "Segoe UI"
+      ]
+    },
+    "background": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "solid",
+            "gradient",
+            "image"
+          ]
+        },
+        "from": {
+          "$ref": "#/definitions/color",
+          "description": "gradient: start color"
+        },
+        "to": {
+          "$ref": "#/definitions/color",
+          "description": "gradient: end color"
+        },
+        "angle": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 360,
+          "default": 160,
+          "description": "gradient: degrees"
+        },
+        "radial": {
+          "type": "boolean",
+          "default": false,
+          "description": "gradient: radial from top instead of linear"
+        },
+        "image": {
+          "type": "string",
+          "description": "image: file in assets/"
+        },
+        "fit": {
+          "enum": [
+            "cover",
+            "contain",
+            "tile"
+          ],
+          "default": "cover"
+        },
+        "overlay": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.95,
+          "default": 0.45,
+          "description": "image: darkening overlay so tiles stay readable"
+        }
+      }
+    },
+    "art": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "icon",
+            "image",
+            "glyph"
+          ]
+        },
+        "icon": {
+          "type": "string",
+          "description": "icon: name from the built-in set (golf, theater, games, music, tv, web, settings, ...)."
+        },
+        "image": {
+          "type": "string",
+          "description": "image: file in assets/ (fills the tile)."
+        },
+        "glyph": {
+          "type": "string",
+          "maxLength": 8,
+          "description": "glyph: a big letter or emoji."
+        },
+        "color": {
+          "$ref": "#/definitions/color",
+          "description": "Tile background override (any art type)."
+        },
+        "iconColor": {
+          "$ref": "#/definitions/color",
+          "description": "Icon/glyph color override; default is the theme accent."
+        }
+      }
+    },
+    "wait": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "none",
+            "seconds",
+            "window",
+            "process"
+          ]
+        },
+        "seconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 600
+        },
+        "title": {
+          "type": "string",
+          "description": "window: wait until a window whose title contains this text appears."
+        },
+        "process": {
+          "type": "string",
+          "description": "process: wait until this process (e.g. FSXPlay.exe) is running."
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 600,
+          "default": 90,
+          "description": "Give up waiting after this many seconds."
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Friendly name shown while launching."
+        },
+        "path": {
+          "type": "string",
+          "description": ".exe, .lnk (Start Menu shortcut), or a URI like steam://. %ENV% variables are expanded."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory; defaults to the exe's folder."
+        },
+        "processName": {
+          "type": "string",
+          "description": "Process to detect as 'already running' (defaults to the exe file name)."
+        },
+        "wait": {
+          "$ref": "#/definitions/wait"
+        },
+        "focus": {
+          "type": "boolean",
+          "default": false,
+          "description": "Bring this program's window to the front after it starts."
+        }
+      }
+    },
+    "tile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "description": "Unique id, used for hotkeys, the Return chip and folders."
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "kind": {
+          "enum": [
+            "launch",
+            "folder",
+            "website",
+            "action"
+          ]
+        },
+        "size": {
+          "enum": [
+            "1x1",
+            "2x1",
+            "2x2"
+          ],
+          "default": "1x1",
+          "description": "1x1 square, 2x1 wide, 2x2 featured."
+        },
+        "labelPosition": {
+          "enum": [
+            "bottom-left",
+            "bottom-center",
+            "hidden"
+          ],
+          "default": "bottom-left"
+        },
+        "art": {
+          "$ref": "#/definitions/art"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/step"
+          },
+          "description": "launch: programs to start, in order."
+        },
+        "tiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/tile"
+          },
+          "description": "folder: tiles inside the folder."
+        },
+        "url": {
+          "type": "string",
+          "description": "website: address to open in the kiosk browser."
+        },
+        "action": {
+          "enum": [
+            "sleep",
+            "restart",
+            "shutdown",
+            "show-desktop",
+            "volume-up",
+            "volume-down",
+            "mute",
+            "windows-settings",
+            "next-theme",
+            "open-room-folder",
+            "exit"
+          ],
+          "description": "action: what the tile does."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "launch"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "steps"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "folder"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "tiles"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "website"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "url"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "action"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "action"
+            ]
+          }
+        }
+      ]
+    },
+    "displayAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Name you gave this display (e.g. Projector)."
+        },
+        "role": {
+          "enum": [
+            "home",
+            "image",
+            "slideshow",
+            "clock",
+            "mirror",
+            "none"
+          ]
+        },
+        "image": {
+          "type": "string",
+          "description": "image: file in assets/"
+        },
+        "fit": {
+          "enum": [
+            "cover",
+            "contain",
+            "tile"
+          ],
+          "default": "cover"
+        },
+        "folder": {
+          "type": "string",
+          "description": "slideshow: sub-folder of assets/"
+        },
+        "interval": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 3600,
+          "default": 10
+        },
+        "crossfade": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 1.5
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' simroom: data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>SimRoom</title>
+  <link rel="stylesheet" href="fonts/fonts.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="bg" aria-hidden="true"></div>
+  <div id="bg-overlay" aria-hidden="true"></div>
+  <img id="watermark" alt="" aria-hidden="true" hidden>
+
+  <div id="home" hidden>
+    <header id="topbar">
+      <div class="slot" data-slot="left"></div>
+      <div class="slot" data-slot="center"></div>
+      <div class="slot" data-slot="right"></div>
+    </header>
+
+    <main id="stage">
+      <div id="grid" role="grid" aria-label="Home"></div>
+    </main>
+
+    <footer id="bottombar">
+      <div class="slot" data-slot="left">
+        <nav id="crumbs" aria-label="Location"></nav>
+      </div>
+      <div class="slot" data-slot="center"></div>
+      <div class="slot" data-slot="right">
+        <span id="hint"></span>
+      </div>
+    </footer>
+  </div>
+
+  <div id="error" hidden role="alertdialog" aria-labelledby="error-title">
+    <div class="error-card">
+      <h1 id="error-title"></h1>
+      <p class="error-where"></p>
+      <ul id="error-details"></ul>
+      <p class="error-help">Fix the file and save it, and SimRoom reloads by itself. Your file is never changed until you choose to.</p>
+      <div class="error-actions">
+        <button data-error="retry">Try again</button>
+        <button data-error="folder">Open room folder</button>
+        <button data-error="sample">Start from the sample room</button>
+        <button data-error="exit">Exit to Windows</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

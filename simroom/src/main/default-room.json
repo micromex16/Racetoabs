@@ -1,0 +1,116 @@
+{
+  "$schema": "./room.schema.json",
+  "version": 1,
+  "room": {
+    "name": "Micromex Sim Room",
+    "tagline": "Tap a square to play",
+    "namePosition": "left",
+    "nameSize": 56,
+    "showName": true
+  },
+  "logo": {
+    "image": null,
+    "position": "top-left",
+    "height": 88,
+    "opacity": 1
+  },
+  "clock": { "show": true, "format": "12h", "showDate": true },
+  "theme": { "active": "clubhouse", "custom": [] },
+  "tileStyle": { "radius": 18, "border": 2, "shadow": true, "hoverGlow": true, "labelSize": 28 },
+  "grid": { "columns": 6, "gap": 22 },
+  "tiles": [
+    {
+      "id": "golf",
+      "label": "GOLF",
+      "kind": "launch",
+      "size": "2x2",
+      "art": { "type": "icon", "icon": "golf" },
+      "steps": [
+        {
+          "name": "Foresight launch monitor",
+          "path": "C:\\Program Files\\Foresight Sports\\FSX Pro\\FSX Pro.exe",
+          "wait": { "type": "process", "process": "FSX Pro.exe", "timeout": 90 },
+          "focus": false
+        },
+        {
+          "name": "FSX Play",
+          "path": "C:\\Program Files\\Foresight Sports\\FSX Play\\FSX Play.exe",
+          "wait": { "type": "none" },
+          "focus": true
+        }
+      ]
+    },
+    {
+      "id": "condor",
+      "label": "Condor",
+      "kind": "launch",
+      "art": { "type": "icon", "icon": "plane" },
+      "steps": [
+        { "name": "Condor 3", "path": "C:\\Condor3\\Condor.exe", "focus": true }
+      ]
+    },
+    {
+      "id": "theater",
+      "label": "Theater",
+      "kind": "folder",
+      "art": { "type": "icon", "icon": "theater" },
+      "tiles": [
+        { "id": "netflix", "label": "Netflix", "kind": "website", "url": "https://www.netflix.com", "art": { "type": "icon", "icon": "netflix", "color": "#141414", "iconColor": "#e50914" } },
+        { "id": "youtube-tv", "label": "YouTube TV", "kind": "website", "url": "https://tv.youtube.com", "art": { "type": "icon", "icon": "youtube", "color": "#1c1c1c", "iconColor": "#ff3b30" } },
+        { "id": "prime", "label": "Prime Video", "kind": "website", "url": "https://www.amazon.com/gp/video/storefront", "art": { "type": "icon", "icon": "amazon", "color": "#0f1b2a", "iconColor": "#1fa9ff" } }
+      ]
+    },
+    {
+      "id": "music",
+      "label": "Music",
+      "kind": "folder",
+      "art": { "type": "icon", "icon": "music" },
+      "tiles": [
+        {
+          "id": "spotify",
+          "label": "Spotify",
+          "kind": "launch",
+          "art": { "type": "icon", "icon": "spotify", "color": "#121212", "iconColor": "#1ed760" },
+          "steps": [ { "name": "Spotify", "path": "%APPDATA%\\Spotify\\Spotify.exe", "focus": true } ]
+        },
+        { "id": "siriusxm", "label": "SiriusXM", "kind": "website", "url": "https://www.siriusxm.com/player", "art": { "type": "icon", "icon": "radio", "color": "#0a1f5c", "iconColor": "#ffffff" } }
+      ]
+    },
+    { "id": "pga-tour", "label": "PGA Tour", "kind": "website", "url": "https://www.pgatour.com/leaderboard", "art": { "type": "icon", "icon": "leaderboard" } },
+    {
+      "id": "games",
+      "label": "Games",
+      "kind": "folder",
+      "art": { "type": "icon", "icon": "games" },
+      "tiles": [
+        {
+          "id": "steam",
+          "label": "Steam",
+          "kind": "launch",
+          "art": { "type": "icon", "icon": "steam", "color": "#171a21", "iconColor": "#66c0f4" },
+          "steps": [ { "name": "Steam Big Picture", "path": "C:\\Program Files (x86)\\Steam\\steam.exe", "args": ["-bigpicture"], "focus": true } ]
+        }
+      ]
+    },
+    { "id": "weather", "label": "Weather", "kind": "website", "url": "https://weather.com", "art": { "type": "icon", "icon": "weather" } },
+    {
+      "id": "the-room",
+      "label": "The Room",
+      "kind": "folder",
+      "art": { "type": "icon", "icon": "settings" },
+      "tiles": [
+        { "id": "windows-settings", "label": "Settings", "kind": "action", "action": "windows-settings", "art": { "type": "icon", "icon": "settings" } },
+        { "id": "next-theme", "label": "Next Theme", "kind": "action", "action": "next-theme", "art": { "type": "icon", "icon": "sparkles" } },
+        { "id": "room-folder", "label": "Room Folder", "kind": "action", "action": "open-room-folder", "art": { "type": "icon", "icon": "folder" } },
+        { "id": "sleep", "label": "Sleep", "kind": "action", "action": "sleep", "art": { "type": "icon", "icon": "sleep" } },
+        { "id": "restart", "label": "Restart PC", "kind": "action", "action": "restart", "art": { "type": "icon", "icon": "restart" } },
+        { "id": "exit", "label": "Exit to Windows", "kind": "action", "action": "exit", "art": { "type": "icon", "icon": "exit" } }
+      ]
+    }
+  ],
+  "displays": { "assignments": {} },
+  "idle": { "enabled": true, "minutes": 10, "folder": "slideshow", "interval": 12 },
+  "hotkeys": { "home": "Ctrl+Alt+Home", "editor": "Ctrl+E" },
+  "startup": { "autoStart": true, "fullscreen": true },
+  "security": { "pinHash": null }
+}
