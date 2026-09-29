@@ -1,0 +1,52 @@
+# Builds the SimRoom Windows installer and portable .exe on every push that
+# touches simroom/. Download them from the run's "Artifacts" section in the
+# Actions tab.
+name: Build SimRoom
+
+on:
+  push:
+    paths:
+      - 'simroom/**'
+      - '.github/workflows/simroom-build.yml'
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: simroom
+    env:
+      # No code-signing certificate yet; don't go looking for one.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: simroom/package-lock.json
+
+      - run: npm ci
+
+      - name: Check the sample room and theme contrast
+        run: |
+          npm run check
+          npm run contrast
+
+      - run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimRoom-Setup
+          path: simroom/dist/SimRoom-Setup-*.exe
+          if-no-files-found: error
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimRoom-Portable
+          path: simroom/dist/SimRoom-Portable-*.exe
+          if-no-files-found: error
+          compression-level: 0
