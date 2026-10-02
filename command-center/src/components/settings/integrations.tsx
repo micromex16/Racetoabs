@@ -70,7 +70,7 @@ export function Integrations() {
                       variant="secondary"
                       onClick={async () => {
                         const r = await call("integration.sync", { provider: i.provider as "gmail" });
-                        toast.success(`Synced ${r.threads} threads, ${r.messages} new messages`);
+                        toast.success(r.note ?? `Synced ${r.threads} threads, ${r.messages} new messages`);
                       }}
                     >
                       <RefreshCw /> Sync
