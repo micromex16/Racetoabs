@@ -179,6 +179,9 @@ export const mutations = {
   "card.move": def(id.extend({ stage, index: z.number().int().optional() }), (i) => pipeline.moveStage(i.id, i.stage, i.index)),
   "card.archive": def(id.extend({ archived: z.boolean().optional() }), (i) => pipeline.archiveCard(i.id, i.archived ?? true)),
   "card.delete": def(id, (i) => pipeline.deleteCard(i.id)),
+  "card.import": def(z.object({ csv: z.string().min(1), lane: lane.optional(), stage: stage.optional() }), (i) => pipeline.importCards(i.csv, i)),
+  "card.linkThread": def(z.object({ cardId: z.string().nullable(), threadId: z.string() }), (i) => pipeline.linkThread(i.cardId, i.threadId)),
+  "card.nextDone": def(id.extend({ nextAction: z.string(), nextActionDate: z.string().nullable().optional() }), (i) => pipeline.completeNextAction(i.id, i)),
   // recurring
   "recurring.upsert": def(
     z.object({ id: z.string().nullable().optional(), title: z.string().min(1), weekday: z.number().int().min(0).max(6).optional(), targetCount: z.number().int().nullable().optional(), metricKey: z.string().nullable().optional(), goalId: z.string().nullable().optional(), active: z.boolean().optional() }),

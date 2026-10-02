@@ -172,3 +172,77 @@ export async function pipelineSummary(lane?: Lane) {
     lateStage: cards.filter((c) => ["RFQ", "QUOTED", "PILOT"].includes(c.stage)).map((c) => ({ company: c.company, stage: c.stage, nextAction: c.nextAction })),
   };
 }
+
+/** Bulk import from CSV: company,lane,tier,contact_name,contact_title,contact_email,contact_phone,linkedin,next_action
+ *  Rows with the same company merge their contacts. Existing companies get the new contacts appended. */
+export async function importCards(csv: string, defaults: { lane?: Lane; stage?: PipelineStage } = {}) {
+  const lines = csv.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return { created: 0, updated: 0 };
+  const split = (l: string) => {
+    const out: string[] = [];
+    let cur = "";
+    let q = false;
+    for (const ch of l) {
+      if (ch === '"') q = !q;
+      else if ((ch === "," || ch === "\t") && !q) {
+        out.push(cur.trim());
+        cur = "";
+      } else cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  };
+  let header = split(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+  let rows = lines.slice(1);
+  if (!header.includes("company")) {
+    header = ["company", "lane", "tier", "contact_name", "contact_title", "contact_email", "contact_phone", "linkedin", "next_action"];
+    rows = lines;
+  }
+  const laneOf = (v: string): Lane => {
+    const x = v.toLowerCase();
+    if (/data|^dc$/.test(x)) return "DATA_CENTER";
+    if (/^a ?& ?d$|^ad$|aero|defen/.test(x)) return "AD";
+    return x ? "OTHER" : (defaults.lane ?? "OTHER");
+  };
+  const byCompany = new Map<string, { lane: Lane; tier: string; nextAction: string; contacts: ContactInput[] }>();
+  for (const r of rows) {
+    const cells = split(r);
+    const get = (k: string) => cells[header.indexOf(k)] ?? "";
+    const company = get("company");
+    if (!company) continue;
+    const entry = byCompany.get(company) ?? { lane: laneOf(get("lane")), tier: get("tier").toUpperCase(), nextAction: get("next_action"), contacts: [] };
+    if (get("contact_name")) entry.contacts.push({ name: get("contact_name"), title: get("contact_title"), email: get("contact_email") || null, phone: get("contact_phone") || null, linkedin: get("linkedin") || null });
+    byCompany.set(company, entry);
+  }
+  let created = 0;
+  let updated = 0;
+  for (const [company, e] of byCompany) {
+    const existing = await db.pipelineCard.findFirst({ where: { company: { equals: company, mode: "insensitive" } }, include: { contacts: true } });
+    if (existing) {
+      const have = new Set(existing.contacts.map((c) => c.name.toLowerCase()));
+      const add = e.contacts.filter((c) => !have.has(c.name.toLowerCase()));
+      if (add.length) {
+        await db.pipelineContact.createMany({ data: add.map((c, i) => ({ cardId: existing.id, name: c.name, title: c.title ?? "", email: c.email ?? null, phone: c.phone ?? null, linkedin: c.linkedin ?? null, sortOrder: existing.contacts.length + i })) });
+        updated++;
+      }
+    } else {
+      await createCard({ company, lane: e.lane, tier: e.tier, stage: defaults.stage ?? "TARGET", nextAction: e.nextAction, contacts: e.contacts });
+      created++;
+    }
+  }
+  return { created, updated };
+}
+
+export async function linkThread(cardId: string | null, threadId: string) {
+  return db.thread.update({ where: { id: threadId }, data: { pipelineCardId: cardId } });
+}
+
+/** Mark the current next action done and set the next one (pipeline discipline: always a next action). */
+export async function completeNextAction(id: string, next: { nextAction: string; nextActionDate?: string | null }) {
+  const today = todayKey(await getTz());
+  const card = await db.pipelineCard.findUniqueOrThrow({ where: { id } });
+  if (card.nextAction) {
+    await db.pipelineCard.update({ where: { id }, data: { notes: `${today}: ✓ ${card.nextAction}\n${card.notes}`.trim() } });
+  }
+  return updateCard(id, { nextAction: next.nextAction, nextActionDate: next.nextActionDate ?? null });
+}
