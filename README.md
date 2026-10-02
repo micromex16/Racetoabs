@@ -1,7 +1,5 @@
 # Race to Abs
 
-> **Looking for the Micromex CEO Command Center?** It lives in [`command-center/`](command-center/README.md) — a separate Next.js app in this repo.
-
 A 30-day accountability challenge. Sign in, tick off your daily check-ins, watch the leaderboard. No weight, no measurements, no body photos — just points, streaks, and a group chat.
 
 ## What it does
