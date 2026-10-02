@@ -133,3 +133,11 @@ export function resolveDateWord(word: string, today: DateKey): DateKey | null {
   }
   return null;
 }
+
+/** The UTC instant of local midnight for a date key in a timezone. */
+export function zonedMidnight(key: DateKey, tz: string): Date {
+  const guess = keyToDate(key).getTime();
+  const p = localParts(tz, new Date(guess));
+  const localAsUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute);
+  return new Date(guess - (localAsUtc - guess));
+}

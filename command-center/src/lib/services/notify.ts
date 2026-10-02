@@ -22,9 +22,12 @@ export async function morningCard() {
   const picks = t.plan.picks.map((p, i) => `${i + 1}) ${trim(p.title, 40)}`).join("\n");
   const threads = t.inbox.top.slice(0, 3).map((th) => `• ${trim(th.subject || th.snippet, 38)}`).join("\n");
   const fu = t.followUpsDue.length ? `\n${t.followUpsDue.length} follow-up${t.followUpsDue.length > 1 ? "s" : ""} due` : "";
+  const pb = t.speedrun.pb ? `\n⏱ Beat ${Math.floor(t.speedrun.pb.durationSec / 3600)}h ${String(Math.floor((t.speedrun.pb.durationSec % 3600) / 60)).padStart(2, "0")}m` : "";
+  const twist = await db.challenge.findUnique({ where: { weekStart: keyToDate(t.weekStart) } });
+  const tw = twist && twist.status === "ACTIVE" ? `\n🌀 ${twist.title}` : "";
   return {
     title: "Your day",
-    body: [rocks, picks || "No picks yet — open to launch.", threads].filter(Boolean).join("\n") + fu,
+    body: [rocks, picks || "No picks yet — open to launch.", threads].filter(Boolean).join("\n") + fu + pb + tw,
     url: "/",
     tag: `morning-${t.today}`,
   };

@@ -1,4 +1,5 @@
 import { db } from "../db";
+import * as game from "../game/hooks";
 import type { Lane, PipelineStage, Prisma } from "@prisma/client";
 import { getTz } from "../settings";
 import { keyToDate, todayKey, weekStartKey, addDays, resolveDateWord } from "../time";
@@ -123,6 +124,7 @@ export async function moveStage(id: string, stage: PipelineStage, index?: number
         events: { create: { fromStage: card.stage, toStage: stage } },
       },
     });
+    await game.onStageMove(id, card.company, card.stage, stage);
   }
   if (index != null) {
     const col = await db.pipelineCard.findMany({ where: { stage, archivedAt: null, id: { not: id } }, orderBy: { sortOrder: "asc" }, select: { id: true } });
@@ -243,6 +245,7 @@ export async function completeNextAction(id: string, next: { nextAction: string;
   const card = await db.pipelineCard.findUniqueOrThrow({ where: { id } });
   if (card.nextAction) {
     await db.pipelineCard.update({ where: { id }, data: { notes: `${today}: ✓ ${card.nextAction}\n${card.notes}`.trim() } });
+    await game.onNextActionDone(id, card.company);
   }
   return updateCard(id, { nextAction: next.nextAction, nextActionDate: next.nextActionDate ?? null });
 }

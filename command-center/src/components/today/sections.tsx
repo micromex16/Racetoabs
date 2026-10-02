@@ -13,6 +13,9 @@ import { celebrate } from "@/lib/confetti";
 import { queueParking } from "@/lib/outbox";
 import { cn, RING_COLORS } from "@/lib/utils";
 import { toast } from "sonner";
+import { SpeedrunStrip, Bounty, startSprint, ChallengeCard, PlantCard } from "@/components/game/widgets";
+import { useQ } from "@/lib/client";
+import { Timer } from "lucide-react";
 
 type Today = QOut<"today">;
 type PickT = Today["plan"]["picks"][number];
@@ -63,6 +66,7 @@ export function PicksSection({ today }: { today: Today }) {
       >
         Do these 3 first
       </SectionTitle>
+      <SpeedrunStrip today={today} />
       {picks.length === 0 ? (
         <Empty title="Nothing to pick from yet" hint="Add tasks linked to your rocks, follow-ups, or pipeline next actions — the picker chooses from those." action={<Button size="sm" variant="primary" onClick={() => ui.openNewTask()}><Plus /> Add a task</Button>} />
       ) : (
@@ -88,10 +92,23 @@ export function PicksSection({ today }: { today: Today }) {
                     </Badge>
                     {p.due && <span className={cn(p.due < today.today && "text-bad")}>{relDay(p.due, today.today)}</span>}
                     {!p.exists && <Badge tone="warn">removed</Badge>}
+                    <Bounty n={p.done ? 0 : p.bounty} />
+                    {!p.done && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void startSprint({ title: p.title, kind: p.kind, refId: p.refId });
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[11px] font-semibold text-accent"
+                      >
+                        <Timer className="size-3" /> Sprint
+                      </button>
+                    )}
                   </>
                 }
                 reason={p.reason}
                 actions={[
+                  { label: "Focus sprint", icon: <Timer />, onSelect: () => void startSprint({ title: p.title, kind: p.kind, refId: p.refId }) },
                   { label: "Swap for another", icon: <Shuffle />, onSelect: () => setSwapSlot(i) },
                   { label: "Snooze to tomorrow", icon: <ACTION_ICONS.Clock />, onSelect: () => snooze(p) },
                   ...(p.kind === "task"
@@ -159,6 +176,7 @@ export function DueSections({ today }: { today: Today }) {
                   <>
                     <span className="text-bad">{relDay(t.due, today.today)}</span>
                     {t.goal && <span className="truncate">· {t.goal.title}</span>}
+                    <Bounty n={t.bounty} />
                   </>
                 }
                 onToggle={(v) => call("task.complete", { id: t.id, done: v })}
@@ -186,7 +204,12 @@ export function DueSections({ today }: { today: Today }) {
                 key={f.id}
                 overdue={f.due < today.today}
                 title={<>Chase {f.person?.name ?? "—"}: {f.title}</>}
-                meta={<span className={cn(f.due < today.today && "text-bad")}>{relDay(f.due, today.today)}</span>}
+                meta={
+                  <>
+                    <span className={cn(f.due < today.today && "text-bad")}>{relDay(f.due, today.today)}</span>
+                    <Bounty n={f.bounty} />
+                  </>
+                }
                 onToggle={(v) => call("followup.complete", { id: f.id, done: v })}
                 onLeft={() => snooze({ kind: "followup", refId: f.id })}
                 onClick={() => router.push(`/accountability?focus=${f.id}`)}
@@ -417,6 +440,17 @@ export function StreakAndCadence({ today }: { today: Today }) {
           )}
         </div>
       </div>
+    </section>
+  );
+}
+
+/** The game row on Today: this week's twist + the plant you're building. */
+export function GameRow() {
+  const { data: g } = useQ("game");
+  return (
+    <section className="grid items-start gap-3 sm:grid-cols-2">
+      {g ? <ChallengeCard c={g.challenge} compact /> : <div className="glass h-32 animate-pulse rounded-2xl" />}
+      <PlantCard />
     </section>
   );
 }

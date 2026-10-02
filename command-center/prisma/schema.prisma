@@ -91,6 +91,8 @@ model Task {
   status       TaskStatus @default(OPEN)
   dueDate      DateTime?
   snoozedUntil DateTime?
+  /// Times snoozed / carried / pushed — feeds the bounty
+  dodges       Int        @default(0)
   doneAt       DateTime?
   sortOrder    Int        @default(0)
   source       String     @default("manual") // manual | voice | agent | parking | comms | recurring
@@ -172,6 +174,11 @@ model DailyPlan {
   launchedAt DateTime?
   closedAt   DateTime?
   allDone    Boolean   @default(false)
+  /// Speedrun: when the 3rd pick was finished, and each pick's split (seconds after launch)
+  finishedAt DateTime?
+  splits     Json      @default("[]")
+  /// A streak freeze covered this day
+  frozen     Boolean   @default(false)
   mindDump   String    @default("")
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -220,6 +227,7 @@ model FollowUp {
   notes     String         @default("")
   doneAt    DateTime?
   remindedAt DateTime?
+  dodges    Int            @default(0)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -537,4 +545,92 @@ model AgentMessage {
   conversation   AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+// ───────────────────────────── Game ─────────────────────────────
+// Coins are a play currency earned from real work and spent on the town.
+// They are not money and never represent money.
+
+model GameState {
+  id        String   @id @default("me")
+  freezes   Int      @default(0)
+  /// Blueprint keys unlocked by achievements, drops and challenge wins
+  unlocks   Json     @default("[]")
+  soundOn   Boolean  @default(true)
+  hapticsOn Boolean  @default(true)
+  sprintMinutes Int  @default(25)
+  updatedAt DateTime @updatedAt
+}
+
+/// Ledger. Balance = sum(amount). `key` makes every award idempotent.
+model CoinEvent {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  amount    Int
+  kind      String
+  label     String
+  meta      Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Building {
+  id        String   @id @default(cuid())
+  type      String
+  x         Int
+  y         Int
+  level     Int      @default(1)
+  createdAt DateTime @default(now())
+}
+
+model FocusSprint {
+  id        String    @id @default(cuid())
+  title     String
+  kind      String?
+  refId     String?
+  minutes   Int
+  startedAt DateTime  @default(now())
+  endsAt    DateTime
+  endedAt   DateTime?
+  completed Boolean   @default(false)
+
+  @@index([startedAt])
+}
+
+model Challenge {
+  id          String    @id @default(cuid())
+  weekStart   DateTime  @unique
+  kind        String
+  title       String
+  description String    @default("")
+  params      Json      @default("{}")
+  reward      Int
+  status      String    @default("ACTIVE") // ACTIVE | WON | LOST
+  createdBy   String    @default("heuristic")
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model Achievement {
+  key        String   @id
+  unlockedAt DateTime @default(now())
+}
+
+model PersonalRecord {
+  key      String   @id
+  value    Float
+  previous Float?
+  detail   String   @default("")
+  at       DateTime @default(now())
+}
+
+/// Real-life treats the president sets for himself and buys with coins
+model Reward {
+  id        String    @id @default(cuid())
+  title     String
+  emoji     String    @default("🎁")
+  cost      Int
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
 }

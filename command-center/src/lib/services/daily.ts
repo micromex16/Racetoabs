@@ -4,7 +4,11 @@ import { addDays, dateToKey, diffDays, keyToDate, localMinutes, parseHHMM, today
 import { loadGoalTree, currentWeeklyRocks, currentQuarterRocks, rockAncestry, type GoalNode } from "./goals";
 import { ensureRecurringForWeek, weeklyCadence } from "./recurring";
 import { resurfaceScheduled, park } from "./parking";
-import { parkTask } from "./tasks";
+import { parkTask, completeTask } from "./tasks";
+import { completeFollowUp } from "./followups";
+import * as game from "../game/hooks";
+import { award, revoke, maybeDrop, note, gameState, bountyFor, COIN } from "../game/economy";
+import { RARE_BLUEPRINTS } from "../game/catalog";
 import { inboxPulse } from "./comms";
 import type { PipelineStage } from "@prisma/client";
 
@@ -212,14 +216,14 @@ async function resolvePicks(picks: Pick[]) {
   return picks.map((p) => {
     if (p.kind === "task") {
       const t = tasks.find((x) => x.id === p.refId);
-      return { ...p, exists: !!t, done: t?.status === "DONE", title: t?.title ?? p.title, due: dateToKey(t?.dueDate) ?? p.due };
+      return { ...p, exists: !!t, done: t?.status === "DONE", title: t?.title ?? p.title, due: dateToKey(t?.dueDate) ?? p.due, completedAt: t?.doneAt?.toISOString() ?? null, dodges: t?.dodges ?? 0 };
     }
     if (p.kind === "followup") {
       const f = fus.find((x) => x.id === p.refId);
-      return { ...p, exists: !!f, done: f?.status === "DONE", due: dateToKey(f?.dueDate) ?? p.due };
+      return { ...p, exists: !!f, done: f?.status === "DONE", due: dateToKey(f?.dueDate) ?? p.due, completedAt: f?.doneAt?.toISOString() ?? null, dodges: f?.dodges ?? 0 };
     }
     const c = cards.find((x) => x.id === p.refId);
-    return { ...p, exists: !!c, done: !!p.doneAt, nextAction: c?.nextAction, stage: c?.stage };
+    return { ...p, exists: !!c, done: !!p.doneAt, nextAction: c?.nextAction, stage: c?.stage, completedAt: p.doneAt ?? null, dodges: 0 };
   });
 }
 
@@ -248,7 +252,12 @@ export async function markPipelinePickDone(refId: string, done = true) {
   const today = todayKey(s.timezone);
   const plan = await ensurePlan(today);
   const picks = (plan.picks as Pick[]).map((p) => (p.kind === "pipeline" && p.refId === refId ? { ...p, doneAt: done ? new Date().toISOString() : null } : p));
-  return db.dailyPlan.update({ where: { date: today }, data: { picks: picks as never } });
+  const updated = await db.dailyPlan.update({ where: { date: today }, data: { picks: picks as never } });
+  if (done) {
+    const card = await db.pipelineCard.findUnique({ where: { id: refId }, select: { company: true } });
+    await game.onNextActionDone(refId, card?.company ?? "Account");
+  } else await game.onPipelinePickUndone(refId);
+  return updated;
 }
 
 export async function launchDay(input: { mindDump?: string }) {
@@ -271,8 +280,9 @@ export async function closeDay(input: { actions: CloseAction[] }) {
   const plan = await ensurePlan(today);
   for (const a of input.actions) {
     if (a.kind === "task") {
-      if (a.action === "done") await db.task.update({ where: { id: a.refId }, data: { status: "DONE", doneAt: new Date() } });
+      if (a.action === "done") await completeTask(a.refId, true);
       if (a.action === "carry") {
+        await game.onDodge("task", a.refId);
         const t = await db.task.findUnique({ where: { id: a.refId } });
         // A weekly recurring instance doesn't carry into next week — next week has its own.
         if (t?.recurringId && weekStartKey(tomorrow) !== weekStartKey(today)) await db.task.update({ where: { id: a.refId }, data: { status: "CANCELLED" } });
@@ -280,8 +290,11 @@ export async function closeDay(input: { actions: CloseAction[] }) {
       }
       if (a.action === "park") await parkTask(a.refId);
     } else if (a.kind === "followup") {
-      if (a.action === "done") await db.followUp.update({ where: { id: a.refId }, data: { status: "DONE", doneAt: new Date() } });
-      if (a.action === "carry") await db.followUp.update({ where: { id: a.refId }, data: { dueDate: keyToDate(tomorrow) } });
+      if (a.action === "done") await completeFollowUp(a.refId, true);
+      if (a.action === "carry") {
+        await game.onDodge("followup", a.refId);
+        await db.followUp.update({ where: { id: a.refId }, data: { dueDate: keyToDate(tomorrow) } });
+      }
       if (a.action === "park") {
         const f = await db.followUp.update({ where: { id: a.refId }, data: { status: "CANCELLED" } });
         await park(`Follow-up: ${f.title}`, "eod");
@@ -308,7 +321,7 @@ function nextWorkday(key: string) {
 }
 
 export async function streak(today: string) {
-  const plans = await db.dailyPlan.findMany({ orderBy: { date: "desc" }, take: 400, select: { date: true, allDone: true, closedAt: true } });
+  const plans = await db.dailyPlan.findMany({ orderBy: { date: "desc" }, take: 400, select: { date: true, allDone: true, closedAt: true, frozen: true } });
   const map = new Map(plans.map((p) => [p.date, p]));
   let cur = 0;
   let d = today;
@@ -324,7 +337,7 @@ export async function streak(today: string) {
       continue;
     }
     if (p?.allDone) cur++;
-    else break;
+    else if (!p?.frozen) break;
     d = addDays(d, -1);
   }
   // best streak
@@ -346,6 +359,8 @@ export async function streak(today: string) {
       run = gapOk ? run + 1 : 1;
       best = Math.max(best, run);
       prev = p.date;
+    } else if (p.frozen && prev) {
+      prev = p.date; // a freeze bridges the gap without adding a day
     } else {
       run = 0;
       prev = null;
@@ -354,7 +369,7 @@ export async function streak(today: string) {
   const last14 = Array.from({ length: 14 }, (_, i) => {
     const k = addDays(today, -13 + i);
     const p = map.get(k);
-    return { date: k, state: p?.allDone ? "done" : p?.closedAt ? "missed" : p ? "open" : "none" };
+    return { date: k, state: p?.allDone ? "done" : p?.frozen ? "frozen" : p?.closedAt ? "missed" : p ? "open" : "none" };
   });
   return { current: cur, best: Math.max(best, cur), last14 };
 }
@@ -381,9 +396,11 @@ export async function getToday() {
       update: {},
     });
   }
+  await applyStreakFreeze(today);
   const picks = await resolvePicks(plan.picks as Pick[]);
   const allDone = picks.length > 0 && picks.every((p) => p.done);
   if (allDone !== plan.allDone) await db.dailyPlan.update({ where: { id: plan.id }, data: { allDone } });
+  plan = await settleSpeedrun(plan, picks, allDone, today);
 
   const pickTaskIds = picks.filter((p) => p.kind === "task").map((p) => p.refId);
   const pickFuIds = picks.filter((p) => p.kind === "followup").map((p) => p.refId);
@@ -430,18 +447,19 @@ export async function getToday() {
       launched: !!plan.launchedAt,
       closed: !!plan.closedAt,
       pickedBy: plan.pickedBy,
-      picks,
+      picks: picks.map((p) => ({ ...p, bounty: p.kind === "pipeline" ? 0 : bountyFor(p.dodges, p.due ? diffDays(today, p.due) : 0) })),
       allDone,
       candidates: (plan.candidates as Pick[]).filter((c) => !picks.some((p) => p.kind === c.kind && p.refId === c.refId)).slice(0, 12),
     },
     needsLaunch: !plan.launchedAt,
     closeWindow: nowMin >= parseHHMM(s.closeTime) - 30 && !plan.closedAt,
-    overdue: overdue.map((t) => ({ id: t.id, title: t.title, due: dateToKey(t.dueDate)!, goal: t.goal })),
+    overdue: overdue.map((t) => ({ id: t.id, title: t.title, due: dateToKey(t.dueDate)!, goal: t.goal, bounty: bountyFor(t.dodges, diffDays(today, dateToKey(t.dueDate)!)) })),
     dueToday: dueTodayTasks.map((t) => ({ id: t.id, title: t.title, due: today, goal: t.goal })),
-    followUpsDue: followUpsDue.map((f) => ({ id: f.id, title: f.title, due: dateToKey(f.dueDate)!, person: f.person })),
+    followUpsDue: followUpsDue.map((f) => ({ id: f.id, title: f.title, due: dateToKey(f.dueDate)!, person: f.person, bounty: bountyFor(f.dodges, diffDays(today, dateToKey(f.dueDate)!)) })),
     pipelineDue: pipelineDue.map((c) => ({ ...c, nextActionDate: dateToKey(c.nextActionDate)! })),
     parking: { open: parkingOpen, recent: parkingRecent },
     streak: await streak(today),
+    speedrun: await speedrunView(plan, today),
     cadence: await weeklyCadence(ws),
     inbox: await inboxPulse(),
     reviewDue,
@@ -450,3 +468,84 @@ export async function getToday() {
 }
 
 export type TodayPayload = Awaited<ReturnType<typeof getToday>>;
+
+// ───────────── Speedrun & streak freezes ─────────────
+
+type ResolvedPick = Awaited<ReturnType<typeof resolvePicks>>[number];
+type Plan = NonNullable<Awaited<ReturnType<typeof db.dailyPlan.findUnique>>>;
+
+function runStart(plan: { launchedAt: Date | null; createdAt: Date }) {
+  return plan.launchedAt ?? plan.createdAt;
+}
+
+/** The clock stops when the 3rd pick is done; splits record when each pick fell. */
+async function settleSpeedrun(plan: Plan, picks: ResolvedPick[], allDone: boolean, today: string): Promise<Plan> {
+  if (allDone && !plan.finishedAt) {
+    const start = runStart(plan).getTime();
+    const times = picks.map((p) => (p.completedAt ? Date.parse(p.completedAt) : Date.now()));
+    const finishedAt = new Date(Math.max(start, ...times));
+    const splits = times.map((t) => Math.max(0, Math.round((t - start) / 1000))).sort((a, b) => a - b);
+    const updated = await db.dailyPlan.update({ where: { id: plan.id }, data: { finishedAt, splits } });
+    const dur = Math.round((finishedAt.getTime() - start) / 1000);
+    await award(`clean:${today}`, COIN.cleanRun, "clean_run", `Clean run — all 3 picks in ${Math.floor(dur / 3600)}h ${String(Math.floor((dur % 3600) / 60)).padStart(2, "0")}m`, { durationSec: dur });
+    await maybeDrop(`clean:${today}`, RARE_BLUEPRINTS);
+    // Every 5 days of streak earns a freeze (hold up to 3).
+    const st = await streak(today);
+    if (st.current > 0 && st.current % 5 === 0) {
+      const gs = await gameState();
+      if (gs.freezes < 3 && !(await db.coinEvent.findUnique({ where: { key: `freeze_earn:${today}` } }))) {
+        await db.gameState.update({ where: { id: "me" }, data: { freezes: { increment: 1 } } });
+        await note(`freeze_earn:${today}`, "freeze", `${st.current}-day streak — earned a streak freeze 🧊`);
+      }
+    }
+    return updated;
+  }
+  if (!allDone && plan.finishedAt && !plan.closedAt) {
+    await revoke(`clean:${today}`);
+    return db.dailyPlan.update({ where: { id: plan.id }, data: { finishedAt: null, splits: [] } });
+  }
+  return plan;
+}
+
+function prevWorkday(key: string) {
+  let d = addDays(key, -1);
+  while (weekday(d) === 0 || weekday(d) === 6) d = addDays(d, -1);
+  return d;
+}
+
+/** If the last workday was missed and a freeze is in the bank, spend it so the streak survives. */
+async function applyStreakFreeze(today: string) {
+  const prev = prevWorkday(today);
+  const p = await db.dailyPlan.findUnique({ where: { date: prev } });
+  if (p?.allDone || p?.frozen) return;
+  const gs = await gameState();
+  if (gs.freezes <= 0) return;
+  // Only worth spending if there's a streak to protect.
+  const before = await db.dailyPlan.findUnique({ where: { date: prevWorkday(prev) } });
+  if (!before?.allDone && !before?.frozen) return;
+  await db.dailyPlan.upsert({ where: { date: prev }, create: { date: prev, frozen: true }, update: { frozen: true } });
+  await db.gameState.update({ where: { id: "me" }, data: { freezes: { decrement: 1 } } });
+  await note(`freeze_used:${prev}`, "freeze", `Streak freeze used for ${prev} — streak saved 🧊`);
+}
+
+/** Today's run vs your personal best (the ghost). */
+async function speedrunView(plan: Plan, today: string) {
+  const start = runStart(plan);
+  const past = await db.dailyPlan.findMany({ where: { finishedAt: { not: null }, date: { not: today } }, select: { date: true, launchedAt: true, createdAt: true, finishedAt: true, splits: true } });
+  let pb: { date: string; durationSec: number; splits: number[] } | null = null;
+  for (const r of past) {
+    const dur = Math.round((r.finishedAt!.getTime() - runStart(r).getTime()) / 1000);
+    if (dur > 0 && (!pb || dur < pb.durationSec)) pb = { date: r.date, durationSec: dur, splits: (r.splits as number[]) ?? [] };
+  }
+  const splits = (plan.splits as number[]) ?? [];
+  return {
+    started: !!plan.launchedAt,
+    startAt: start.toISOString(),
+    finishedAt: plan.finishedAt?.toISOString() ?? null,
+    durationSec: plan.finishedAt ? Math.round((plan.finishedAt.getTime() - start.getTime()) / 1000) : null,
+    splits,
+    pb,
+    isPb: !!plan.finishedAt && !!pb && (plan.finishedAt.getTime() - start.getTime()) / 1000 < pb.durationSec,
+    firstRun: !!plan.finishedAt && !pb,
+  };
+}

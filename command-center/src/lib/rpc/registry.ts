@@ -20,6 +20,8 @@ import { agentRepick } from "../agent/picks";
 import { agentConfigured } from "../agent/client";
 import { summarizeThread, draftReply, rankInbox } from "../agent/comms";
 import { db } from "../db";
+import { getGame } from "../game/state";
+import * as town from "../game/town";
 import { todayKey } from "../time";
 
 // One registry for the UI (via /api/q and /api/m), the agent's tools and cron.
@@ -106,6 +108,7 @@ export const queries = {
   thread: def(id, (i) => comms.getThread(i.id)),
   drafts: def(z.object({}), () => comms.listDrafts()),
   integrations: def(z.object({}), () => integrationsStatus()),
+  game: def(z.object({}), () => getGame()),
   "agent.status": def(z.object({}), async () => ({ configured: agentConfigured(), model: process.env.ANTHROPIC_MODEL || "claude-opus-5-5" })),
   "agent.conversations": def(z.object({}), () => listConversations()),
   "agent.messages": def(id, (i) => conversationView(i.id)),
@@ -221,6 +224,20 @@ export const mutations = {
   "draft.discard": def(id, (i) => comms.discardDraft(i.id)),
   "integration.sync": def(z.object({ provider: z.enum(["gmail", "slack", "whatsapp"]), full: z.boolean().optional() }), (i) => syncProvider(i.provider, { full: i.full })),
   "integration.disconnect": def(z.object({ provider: z.enum(["gmail", "slack", "whatsapp"]) }), async (i) => (await disconnect(i.provider), { ok: true })),
+  // game
+  "town.build": def(z.object({ type: z.string(), x: z.number().int(), y: z.number().int() }), (i) => town.build(i.type, i.x, i.y)),
+  "town.move": def(id.extend({ x: z.number().int(), y: z.number().int() }), (i) => town.moveBuilding(i.id, i.x, i.y)),
+  "town.upgrade": def(id, (i) => town.upgradeBuilding(i.id)),
+  "town.sell": def(id, (i) => town.sellBuilding(i.id)),
+  "game.buyFreeze": def(z.object({}), () => town.buyFreeze()),
+  "game.settings": def(z.object({ soundOn: z.boolean().optional(), hapticsOn: z.boolean().optional(), sprintMinutes: z.number().int().min(5).max(90).optional() }), (i) =>
+    db.gameState.upsert({ where: { id: "me" }, create: { id: "me", ...i }, update: i }),
+  ),
+  "reward.upsert": def(z.object({ id: z.string().nullable().optional(), title: z.string().min(1), emoji: z.string().optional(), cost: z.number().int().min(1) }), ({ id: rid, ...rest }) => town.upsertReward(rid ?? null, rest)),
+  "reward.claim": def(id, (i) => town.claimReward(i.id)),
+  "reward.delete": def(id, (i) => town.deleteReward(i.id)),
+  "sprint.start": def(z.object({ title: z.string().min(1), kind: z.string().nullable().optional(), refId: z.string().nullable().optional(), minutes: z.number().int().min(5).max(90).optional() }), (i) => town.startSprint(i)),
+  "sprint.finish": def(id.extend({ completed: z.boolean() }), (i) => town.finishSprint(i.id, i.completed)),
   // recurring
   "recurring.upsert": def(
     z.object({ id: z.string().nullable().optional(), title: z.string().min(1), weekday: z.number().int().min(0).max(6).optional(), targetCount: z.number().int().nullable().optional(), metricKey: z.string().nullable().optional(), goalId: z.string().nullable().optional(), active: z.boolean().optional() }),

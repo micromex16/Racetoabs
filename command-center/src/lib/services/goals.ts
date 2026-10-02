@@ -1,4 +1,5 @@
 import { db } from "../db";
+import * as game from "../game/hooks";
 import type { Goal, GoalLevel, GoalStatus, Prisma } from "@prisma/client";
 import { getTz } from "../settings";
 import { dateToKey, diffDays, keyToDate, todayKey, weekStartKey, addDays, quarterBounds } from "../time";
@@ -274,14 +275,19 @@ export async function updateGoal(id: string, patch: Partial<GoalInput>) {
   const data = toData(patch);
   if (patch.status === "DONE") data.completedAt = new Date();
   else if (patch.status) data.completedAt = null;
-  return db.goal.update({ where: { id }, data });
+  const before = patch.status ? await db.goal.findUnique({ where: { id }, select: { status: true } }) : null;
+  const g = await db.goal.update({ where: { id }, data });
+  if (patch.status && before && (patch.status === "DONE") !== (before.status === "DONE")) await game.onGoalDone(id, patch.status === "DONE");
+  return g;
 }
 
 export async function completeGoal(id: string, done: boolean) {
-  return db.goal.update({
+  const g = await db.goal.update({
     where: { id },
     data: done ? { status: "DONE", completedAt: new Date() } : { status: "ON_TRACK", completedAt: null },
   });
+  await game.onGoalDone(id, done);
+  return g;
 }
 
 export async function archiveGoal(id: string, archived = true) {

@@ -27,6 +27,7 @@ export default function SettingsPage() {
           <PushCard />
         </Panel>
       </section>
+      <GameSettings />
       <section id="integrations">
         <SectionTitle>Integrations</SectionTitle>
         <React.Suspense>
@@ -229,6 +230,40 @@ function Cadence() {
             <Plus />
           </Button>
         </form>
+      </Panel>
+    </section>
+  );
+}
+
+function GameSettings() {
+  const { data: g } = useQ("game");
+  if (!g) return null;
+  const set = (patch: { soundOn?: boolean; hapticsOn?: boolean; sprintMinutes?: number }) => call("game.settings", patch);
+  return (
+    <section>
+      <SectionTitle>Game</SectionTitle>
+      <Panel className="grid gap-4 p-5 sm:grid-cols-3">
+        <Field label="Sounds">
+          <Select value={g.settings.soundOn ? "on" : "off"} onChange={(e) => set({ soundOn: e.target.value === "on" })}>
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </Select>
+        </Field>
+        <Field label="Haptics (Android)" hint="iPhone browsers don't expose vibration.">
+          <Select value={g.settings.hapticsOn ? "on" : "off"} onChange={(e) => set({ hapticsOn: e.target.value === "on" })}>
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </Select>
+        </Field>
+        <Field label="Focus sprint length">
+          <Select value={g.settings.sprintMinutes} onChange={(e) => set({ sprintMinutes: Number(e.target.value) })}>
+            {[15, 25, 45, 60].map((m) => (
+              <option key={m} value={m}>
+                {m} minutes
+              </option>
+            ))}
+          </Select>
+        </Field>
       </Panel>
     </section>
   );

@@ -1,4 +1,5 @@
 import { db } from "../db";
+import * as game from "../game/hooks";
 import { getTz } from "../settings";
 import { addDays, keyToDate, todayKey } from "../time";
 
@@ -55,21 +56,28 @@ export async function updateTask(id: string, patch: Partial<TaskInput> & { statu
   }
   if (patch.status === "DONE") data.doneAt = new Date();
   if (patch.status === "OPEN") data.doneAt = null;
-  return db.task.update({ where: { id }, data, include: taskInclude });
+  const before = await db.task.findUnique({ where: { id }, select: { dueDate: true, status: true } });
+  // Pushing a due date out counts as a dodge (the bounty grows).
+  if (patch.dueDate && before?.dueDate && keyToDate(patch.dueDate) > before.dueDate) data.dodges = { increment: 1 };
+  const t = await db.task.update({ where: { id }, data, include: taskInclude });
+  if (patch.status && patch.status !== before?.status) await game.onTaskDone(id, patch.status === "DONE");
+  return t;
 }
 
 export async function completeTask(id: string, done = true) {
-  return db.task.update({
+  const t = await db.task.update({
     where: { id },
     data: done ? { status: "DONE", doneAt: new Date() } : { status: "OPEN", doneAt: null },
     include: taskInclude,
   });
+  await game.onTaskDone(id, done);
+  return t;
 }
 
 export async function snoozeTask(id: string, days = 1) {
   const today = todayKey(await getTz());
   const until = keyToDate(addDays(today, days));
-  return db.task.update({ where: { id }, data: { snoozedUntil: until, dueDate: until } });
+  return db.task.update({ where: { id }, data: { snoozedUntil: until, dueDate: until, dodges: { increment: 1 } } });
 }
 
 export async function deleteTask(id: string) {

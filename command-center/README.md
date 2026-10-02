@@ -11,18 +11,19 @@ It never invents priorities. You set the goals and rocks; the app enforces them.
 ## Contents
 
 1. [What's inside](#whats-inside)
-2. [Run locally](#run-locally)
-3. [Deploy to Vercel](#deploy-to-vercel)
-4. [Install on iPhone (PWA) + push notifications](#install-on-iphone-pwa--push-notifications)
-5. [The agent (Anthropic)](#the-agent-anthropic)
-6. [Email — Gmail API (works with Superhuman)](#email--gmail-api-works-with-superhuman)
-7. [Slack](#slack)
-8. [WhatsApp Business](#whatsapp-business)
-9. [Background jobs (cron)](#background-jobs-cron)
-10. [Back up the database](#back-up-the-database)
-11. [Add a metric](#add-a-metric)
-12. [Environment variables](#environment-variables)
-13. [Architecture](#architecture)
+2. [The game](#the-game)
+3. [Run locally](#run-locally)
+4. [Deploy to Vercel](#deploy-to-vercel)
+5. [Install on iPhone (PWA) + push notifications](#install-on-iphone-pwa--push-notifications)
+6. [The agent (Anthropic)](#the-agent-anthropic)
+7. [Email — Gmail API (works with Superhuman)](#email--gmail-api-works-with-superhuman)
+8. [Slack](#slack)
+9. [WhatsApp Business](#whatsapp-business)
+10. [Background jobs (cron)](#background-jobs-cron)
+11. [Back up the database](#back-up-the-database)
+12. [Add a metric](#add-a-metric)
+13. [Environment variables](#environment-variables)
+14. [Architecture](#architecture)
 
 ---
 
@@ -38,6 +39,7 @@ It never invents priorities. You set the goals and rocks; the app enforces them.
 | **Weekly Review** | Said vs. done → overdue → Parking Lot triage (promote / schedule / delete) → set next week's rocks. **Can't close until next week's rocks exist.** Monthly one-page summary, copyable. |
 | **Pipeline** | Target → Contacted → Sample Sent → Discovery → RFQ → Quoted → Pilot → Customer. Lanes: Data Center / A&D / Other. Next actions feed Today. CSV import for the 100-account list. |
 | **Comms** | Unified Email / Slack / WhatsApp feed, search, reply, and "→ task / follow-up / pipeline" on every thread. Every outbound message is a draft until you approve. |
+| **Plant** | The game: coins from real work, a town you build, speedruns against your personal best, weekly twists, trophies, records. See [The game](#the-game). |
 | **Agent** | Chief of staff: reads and writes everything above, ranks your inbox, drafts replies for approval, creates follow-ups from plain speech. Side panel on desktop (`A`), full-screen tab on phone. |
 
 **Keyboard (desktop):** `N` new task · `P` park a thought · `/` search · `A` agent · `V` dictate · `G` then `T` `G` `S` `P` `C` `A` `R` `L` to jump to Today, Goals, Scoreboard, Pipeline, Comms, Accountability, Review, Parking Lot · `⌘K` search.
@@ -45,6 +47,49 @@ It never invents priorities. You set the goals and rocks; the app enforces them.
 **Phone:** bottom tabs (Today / Goals / Pipeline / Comms / Agent), mic button on every screen, swipe right = done, swipe left = snooze/park, long-press = delegate.
 
 **Drift alert:** a task that doesn't link to a rock or goal asks "which rock does this serve?" with a **None — park it** button.
+
+---
+
+## The game
+
+Work earns **coins**; coins build your **plant**. You're only playing against your own record. Coins are play currency — they never represent money.
+
+**Earning (only from work that moves the business)**
+
+| Action | Coins |
+|---|---|
+| Task linked to a rock | 10 (+20 if it's one of today's 3 picks) |
+| Task with no rock | 2 — side quests don't pay |
+| Follow-up closed | 15 (+20 if picked) |
+| Pipeline next action done | 15 (+20 if picked) |
+| Account moves forward | Contacted 10 · Sample 20 · Discovery 40 · RFQ 75 · Quoted 75 · Pilot 150 · **Customer 500** |
+| Scoreboard activity | per founder touch 3 · kit mailed 10 · discovery call 25 · RFQ 40 · quote 40 · LinkedIn post 25 |
+| Clean run (all 3 picks) | 100 |
+| Focus sprint finished | 20, plus a combo that grows with each sprint that day |
+| Weekly rock / quarter rock | 150 / 1,000 |
+| Friday payout (closing the review) | 100 + 60 per clean day + 40 per rock − 15 per overdue item |
+| Weekly twist won | 150–400 + a rare blueprint |
+| New personal record | 50 |
+
+**Bounties.** Every time you snooze, carry or push something, its bounty grows (+15 per dodge, +5 per day overdue, up to +150). The thing you've been avoiding ends up worth the most coins on the screen.
+
+**Speedrun.** The clock starts when you launch the day and stops when your third pick is done. Today's run races your personal best: you can see your splits against the best run's, and whether you're ahead or behind.
+
+**The plant.** On *Plant* (sidebar, or tap the coin pill), spend coins on assembly lines, a QA lab, warehouses, a water tower, solar, a comedor, saguaros, and more. Upgrade buildings, move them, or sell them back at half price. Some buildings unlock only through real milestones: first RFQ → SMT line, an A&D account at Discovery → wire-harness line, a Data Center pilot → rack cell, first new customer → Tucson office, four Friday reviews → trophy hall, a 20-day streak → founder's statue, 80+ exit readiness → the Exit Tower. The world is live: your 3 weekly rocks are beacons that fill as they progress, every pipeline account is a container on the road at its stage, mailed kits drive to the border as trucks, customers fly flags in Tucson, and the sky follows the time of day in Imuris.
+
+**Power.** Miss workdays or let work go overdue and the plant dims: the smoke stops and the lights go out. Clean runs power it back up.
+
+**Weekly twist.** Each Monday a new challenge is aimed at whichever of your rocks is most behind pace, e.g. "15 founder touches by Wednesday noon" or "clear every overdue item by Wednesday 5pm". The agent designs it when an API key is set; otherwise the built-in rules do.
+
+**Surprises.** About one completion in seven drops a bonus: extra coins, a streak freeze, or a rare blueprint (fountain, mural, neon sign, desert garden, golden saguaro).
+
+**Streak freezes.** You earn one every 5-day streak and can buy them for 150 coins (hold up to 3). If you miss a workday, a freeze is spent automatically so the streak survives.
+
+**Treats.** Under *Plant → Treats*, set real-life rewards and price them in coins. Cash them in when you've earned them, on the honor system.
+
+**Trophies and records.** There are 21 achievements and 7 personal records: fastest clean run, earliest finish, longest streak, most clean days in a week, most founder touches in a week, most sprints in a day, most coins in a week.
+
+Sounds and haptics can be switched off in **Settings → Game**; that's also where you set the sprint length (15/25/45/60). iPhone browsers don't support vibration.
 
 ---
 

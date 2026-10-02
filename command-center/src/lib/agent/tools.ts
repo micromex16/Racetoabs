@@ -13,6 +13,8 @@ import * as metrics from "../services/metrics";
 import * as pipeline from "../services/pipeline";
 import { globalSearch } from "../services/search";
 import { db } from "../db";
+import { getGame } from "../game/state";
+import { fmtDuration } from "../game/catalog";
 
 // The agent's hands. Every tool calls the same service layer as the UI.
 // None of these tools sends a message to anyone — outbound comms are drafts (see comms tools).
@@ -454,6 +456,34 @@ export const INTERNAL_TOOLS = [
     schema: z.object({}),
     label: () => "Read people",
     run: async () => (await people.listPeople()).map((p) => ({ id: p.id, name: p.name, role: p.role, email: p.email, team: p.isTeam })),
+  }),
+  tool({
+    name: "get_game_state",
+    description:
+      "The president's game layer: coin balance, coins earned today/this week, today's speedrun vs personal best, this week's twist (challenge) and its progress, personal records, recent achievements, plant power, streak freezes. Use it to coach: celebrate records, nudge toward the twist, point out a growing bounty.",
+    schema: z.object({}),
+    label: () => "Read the game",
+    run: async () => {
+      const g = await getGame();
+      const t = await daily.getToday();
+      return {
+        coins: g.balance,
+        earned_today: g.earnedToday,
+        earned_week: g.earnedWeek,
+        plant_power: g.power,
+        freezes: g.freezes,
+        speedrun: {
+          started: t.speedrun.started,
+          finished_in: t.speedrun.durationSec ? fmtDuration(t.speedrun.durationSec) : null,
+          personal_best: t.speedrun.pb ? fmtDuration(t.speedrun.pb.durationSec) : null,
+        },
+        twist: { title: g.challenge.title, description: g.challenge.description, status: g.challenge.status, progress: g.challenge.progress, deadline: g.challenge.deadlineLabel, reward: g.challenge.reward },
+        records: g.records.filter((r) => r.value != null).map((r) => `${r.title}: ${r.display}`),
+        achievements_unlocked: g.achievements.filter((a) => a.unlockedAt).map((a) => a.title),
+        biggest_bounties: [...t.overdue, ...t.followUpsDue].filter((x) => x.bounty > 0).sort((a, b) => b.bounty - a.bounty).slice(0, 3).map((x) => `${x.title}: +${x.bounty}`),
+        buildings: g.buildings.length,
+      };
+    },
   }),
   tool({
     name: "search",

@@ -1,4 +1,5 @@
 import { db } from "../db";
+import * as game from "../game/hooks";
 import { getTz } from "../settings";
 import { keyToDate, todayKey, resolveDateWord } from "../time";
 import { findPersonByName } from "./people";
@@ -66,16 +67,22 @@ export async function updateFollowUp(id: string, patch: Partial<FollowUpInput> &
   }
   if (patch.status === "DONE") data.doneAt = new Date();
   if (patch.status === "OPEN") data.doneAt = null;
-  return db.followUp.update({ where: { id }, data, include });
+  const before = await db.followUp.findUnique({ where: { id }, select: { dueDate: true, status: true } });
+  if (data.dueDate && before && (data.dueDate as Date) > before.dueDate) data.dodges = { increment: 1 };
+  const f = await db.followUp.update({ where: { id }, data, include });
+  if (patch.status && patch.status !== before?.status) await game.onFollowUpDone(id, patch.status === "DONE");
+  return f;
 }
 
 export async function completeFollowUp(id: string, done = true, note?: string) {
   if (note) await db.touch.create({ data: { followUpId: id, note, channel: "note" } });
-  return db.followUp.update({
+  const f = await db.followUp.update({
     where: { id },
     data: done ? { status: "DONE", doneAt: new Date() } : { status: "OPEN", doneAt: null },
     include,
   });
+  await game.onFollowUpDone(id, done);
+  return f;
 }
 
 export async function logTouch(followUpId: string, note: string, channel = "note", nextDate?: string) {

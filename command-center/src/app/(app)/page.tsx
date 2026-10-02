@@ -2,7 +2,7 @@
 import { useQ } from "@/lib/client";
 import { ui } from "@/lib/ui-store";
 import { RockHero } from "@/components/today/rock-hero";
-import { PicksSection, DueSections, InboxPulse, ParkingQuick, StreakAndCadence } from "@/components/today/sections";
+import { PicksSection, DueSections, InboxPulse, ParkingQuick, StreakAndCadence, GameRow } from "@/components/today/sections";
 import { GestureHint } from "@/components/app/swipe-row";
 import { Skeleton } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ export default function TodayPage() {
       <PicksSection today={today} />
       <DueSections today={today} />
       <GestureHint />
+      <GameRow />
       <InboxPulse today={today} />
       <ParkingQuick count={today.parking.open} />
       <StreakAndCadence today={today} />

@@ -1,4 +1,5 @@
 import { db } from "../db";
+import * as game from "../game/hooks";
 import { getSettings } from "../settings";
 import { addDays, dateToKey, keyToDate, todayKey, weekStartKey, fmtShort } from "../time";
 import { loadGoalTree, currentWeeklyRocks, currentQuarterRocks } from "./goals";
@@ -88,6 +89,11 @@ export async function closeWeeklyReview(weekStart: string, input: { notes?: stri
   if (nextRocks === 0) throw new Error("Set next week's rocks before closing the review.");
   const snap = await getWeeklyReview(weekStart);
   const wsD = keyToDate(weekStart);
+  await game.onWeeklyReviewClosed(weekStart, {
+    cleanDays: snap.done.picksDays,
+    rocksDone: snap.done.rocks,
+    overdue: snap.overdue.tasks.length + snap.overdue.followUps.length,
+  });
   return db.weeklyReview.upsert({
     where: { weekStart: wsD },
     create: { weekStart: wsD, notes: input.notes ?? "", wins: input.wins ?? "", closedAt: new Date(), snapshot: { said: snap.said, done: snap.done } as never },

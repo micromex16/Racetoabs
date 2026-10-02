@@ -232,3 +232,18 @@ body {
 .prose-agent th, .prose-agent td { border-bottom: 1px solid var(--line); padding: 0.35em 0.4em; text-align: left; }
 .prose-agent th { color: var(--muted); font-weight: 500; }
 .prose-agent blockquote { border-left: 2px solid var(--line-2); padding-left: 0.8em; color: var(--fg-2); }
+
+/* Town animations */
+@keyframes game-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes game-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes game-smoke { 0% { transform: translate(0, 0) scale(0.6); opacity: 0.55; } 100% { transform: translate(14px, -46px) scale(1.8); opacity: 0; } }
+@keyframes game-wave { 0%, 100% { transform: skewY(0deg); } 50% { transform: skewY(-6deg); } }
+@keyframes game-twinkle { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.2; } }
+@keyframes game-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.game-blink { animation: game-blink 1.4s ease-in-out infinite; }
+.game-blink2 { animation: game-blink 0.9s ease-in-out infinite 0.3s; }
+.game-bob { animation: game-bob 1.6s ease-in-out infinite; transform-box: fill-box; }
+.game-smoke { animation: game-smoke 3.2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.game-wave { animation: game-wave 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: left center; }
+.game-twinkle { animation: game-twinkle 3s ease-in-out infinite; }
+.game-pulse { animation: game-pulse 2s ease-in-out infinite; }

@@ -21,6 +21,9 @@ import { MorningLaunch } from "@/components/launch/morning-launch";
 import { EndOfDay } from "@/components/today/end-of-day";
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { flushOutbox } from "@/lib/outbox";
+import { CoinPill } from "@/components/game/coin";
+import { GameEvents } from "@/components/game/game-events";
+import { FocusMode } from "@/components/game/widgets";
 
 function useServiceWorker() {
   React.useEffect(() => {
@@ -150,6 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Kbd className="ml-auto">/</Kbd>
         </button>
         <div className="ml-auto flex items-center gap-1.5">
+          <CoinPill className="mr-1" />
           <Button size="sm" variant="ghost" onClick={() => ui.openNewTask()}>
             <Plus /> Task <Kbd>N</Kbd>
           </Button>
@@ -170,6 +174,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent-2 text-[11px] font-bold text-white">M</div>
         <h1 className="text-[15px] font-semibold tracking-tight">{current?.label ?? "Micromex"}</h1>
         <div className="ml-auto flex items-center gap-1">
+          <CoinPill />
           <Button variant="ghost" size="icon" onClick={() => ui.set({ search: true })} aria-label="Search">
             <Search className="!size-5" />
           </Button>
@@ -205,7 +210,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ───────── Mobile: mic FAB + tab bar ───────── */}
       <button
         onClick={() => ui.openCapture({ voice: true })}
-        hidden={pathname.startsWith("/agent") || pathname.startsWith("/comms")}
+        hidden={pathname.startsWith("/agent") || pathname.startsWith("/comms") || pathname.startsWith("/build")}
         className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-30 grid size-14 place-items-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_12px_30px_-6px_var(--accent)] active:scale-95 lg:hidden"
         aria-label="Dictate a thought"
       >
@@ -251,6 +256,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SearchPalette />
       {launchOpen && today && <MorningLaunch today={today} />}
       <EndOfDay />
+      <GameEvents />
+      <FocusMode />
     </div>
   );
 }

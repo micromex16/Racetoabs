@@ -1,4 +1,5 @@
 import { db } from "../db";
+import * as game from "../game/hooks";
 import type { Metric } from "@prisma/client";
 import { getTz } from "../settings";
 import { addDays, dateToKey, keyToDate, todayKey, weekStartKey } from "../time";
@@ -171,15 +172,18 @@ export async function recordMetric(input: { metricKey?: string; metricId?: strin
   const wk = keyToDate(weekStartKey(input.weekStart ?? todayKey(tz)));
   const existing = await db.metricEntry.findUnique({ where: { metricId_weekStart: { metricId: m.id, weekStart: wk } } });
   const value = input.mode === "add" ? (existing?.value ?? 0) + input.value : input.value;
-  return db.metricEntry.upsert({
+  const entry = await db.metricEntry.upsert({
     where: { metricId_weekStart: { metricId: m.id, weekStart: wk } },
     create: { metricId: m.id, weekStart: wk, value, note: input.note ?? "" },
     update: { value, ...(input.note != null ? { note: input.note } : {}) },
   });
+  await game.onMetricRecorded(m.id, wk);
+  return entry;
 }
 
 export async function clearMetricEntry(metricId: string, weekStart: string) {
   await db.metricEntry.deleteMany({ where: { metricId, weekStart: keyToDate(weekStartKey(weekStart)) } });
+  await game.onMetricRecorded(metricId, keyToDate(weekStartKey(weekStart)));
   return { ok: true };
 }
 

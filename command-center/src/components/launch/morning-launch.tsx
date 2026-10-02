@@ -103,7 +103,11 @@ export function MorningLaunch({ today }: { today: Today }) {
 
     // 2 — Picks
     <div key="picks" className="flex min-h-full flex-col">
-      <Header kicker="2 · Focus" title="Do these 3 things first today" sub="Picked against your rocks. Swap any one." />
+      <Header
+        kicker="2 · Focus"
+        title="Do these 3 things first today"
+        sub={today.speedrun.pb ? `The clock starts when you launch. Time to beat: ${Math.floor(today.speedrun.pb.durationSec / 3600)}h ${String(Math.floor((today.speedrun.pb.durationSec % 3600) / 60)).padStart(2, "0")}m.` : "Picked against your rocks. The clock starts when you launch — set the time to beat."}
+      />
       <div className="mx-auto w-full max-w-xl flex-1 space-y-3">
         {today.plan.picks.length === 0 && <p className="rounded-2xl border border-dashed border-line-2 p-6 text-center text-sm text-muted">Nothing to pick from yet — add tasks tied to your rocks and the picker will fill this.</p>}
         {today.plan.picks.map((p, i) => {
