@@ -116,6 +116,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { key: "challenge_3", title: "Twist master", desc: "Won 3 weekly twists.", emoji: "🌀", reward: 300 },
   { key: "first_build", title: "Groundbreaking", desc: "First building placed.", emoji: "🏗️", reward: 25 },
   { key: "builder_10", title: "Builder", desc: "10 buildings in town.", emoji: "🏭", reward: 200 },
+  { key: "venture_founded", title: "Open for business", desc: "Founded a company in the tycoon game.", emoji: "🔑", reward: 50 },
+  { key: "venture_hire_10", title: "Payroll", desc: "Ten people on the game company's payroll at once.", emoji: "👥", reward: 150 },
+  { key: "venture_exit", title: "Exit!", desc: "Sold a company in the tycoon game.", emoji: "🥂", reward: 300 },
+  { key: "venture_serial", title: "Serial founder", desc: "Sold three companies in the tycoon game.", emoji: "🎩", reward: 750 },
   { key: "exit_80", title: "Almost exit-ready", desc: "Exit readiness 80+. Unlocks the Exit Tower.", emoji: "🗼", reward: 2000 },
 ];
 

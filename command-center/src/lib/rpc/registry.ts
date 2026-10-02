@@ -22,6 +22,7 @@ import { summarizeThread, draftReply, rankInbox } from "../agent/comms";
 import { db } from "../db";
 import { getGame } from "../game/state";
 import * as town from "../game/town";
+import * as venture from "../venture/service";
 import { todayKey } from "../time";
 
 // One registry for the UI (via /api/q and /api/m), the agent's tools and cron.
@@ -109,6 +110,8 @@ export const queries = {
   drafts: def(z.object({}), () => comms.listDrafts()),
   integrations: def(z.object({}), () => integrationsStatus()),
   game: def(z.object({}), () => getGame()),
+  venture: def(z.object({}), () => venture.getVenture()),
+  "venture.brief": def(z.object({}), () => venture.ventureBrief()),
   "agent.status": def(z.object({}), async () => ({ configured: agentConfigured(), model: process.env.ANTHROPIC_MODEL || "claude-opus-5-5" })),
   "agent.conversations": def(z.object({}), () => listConversations()),
   "agent.messages": def(id, (i) => conversationView(i.id)),
@@ -237,6 +240,24 @@ export const mutations = {
   "reward.claim": def(id, (i) => town.claimReward(i.id)),
   "reward.delete": def(id, (i) => town.deleteReward(i.id)),
   "sprint.start": def(z.object({ title: z.string().min(1), kind: z.string().nullable().optional(), refId: z.string().nullable().optional(), minutes: z.number().int().min(5).max(90).optional() }), (i) => town.startSprint(i)),
+  "venture.found": def(z.object({ industry: z.string(), name: z.string().max(60), city: z.string().max(60).optional() }), (i) => venture.found(i)),
+  "venture.hire": def(id, (i) => venture.hire(i.id)),
+  "venture.fire": def(id, (i) => venture.fire(i.id)),
+  "venture.lease": def(z.object({ key: z.string() }), (i) => venture.lease(i.key)),
+  "venture.buyMachine": def(z.object({ tier: z.number().int().min(0).max(4) }), (i) => venture.buyMachine(i.tier)),
+  "venture.sellMachine": def(id, (i) => venture.sellMachine(i.id)),
+  "venture.accept": def(id, (i) => venture.acceptOffer(i.id)),
+  "venture.decline": def(id, (i) => venture.declineOffer(i.id)),
+  "venture.decide": def(id.extend({ option: z.number().int().min(0) }), (i) => venture.decide(i.id, i.option)),
+  "venture.invest": def(z.object({ coins: z.number().int().min(10).max(100000) }), (i) => venture.invest(i.coins)),
+  "venture.pep": def(z.object({}), () => venture.pepTalk()),
+  "venture.ad": def(z.object({}), () => venture.postAd()),
+  "venture.pitch": def(z.object({}), () => venture.pitch()),
+  "venture.autoAccept": def(z.object({ on: z.boolean() }), (i) => venture.setAutoAccept(i.on)),
+  "venture.rename": def(z.object({ name: z.string().min(1).max(60) }), (i) => venture.rename(i.name)),
+  "venture.sell": def(z.object({}), () => venture.sell()),
+  "venture.windDown": def(z.object({}), () => venture.windDown()),
+  "venture.alerts": def(z.object({ on: z.boolean() }), (i) => venture.setAlerts(i.on)),
   "sprint.finish": def(id.extend({ completed: z.boolean() }), (i) => town.finishSprint(i.id, i.completed)),
   // recurring
   "recurring.upsert": def(

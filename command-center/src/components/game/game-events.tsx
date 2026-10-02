@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 
 type Ev = QOut<"game">["recent"][number];
 const SEEN = "cc.game.seen";
-const BIG = new Set(["achievement", "record", "challenge", "clean_run", "payout", "rock"]);
-const QUIET = new Set(["build", "upgrade", "reward", "sell"]);
+const BIG = new Set(["achievement", "record", "challenge", "clean_run", "payout", "rock", "exit"]);
+const QUIET = new Set(["build", "upgrade", "reward", "sell", "invest", "venture"]);
 
 /** Watches the coin ledger and turns new entries into coin pops and big moments. */
 export function GameEvents() {
@@ -58,7 +58,7 @@ export function GameEvents() {
     if (!current) return;
     if (current.kind === "record") sfx.record();
     else sfx.fanfare();
-    celebrate(current.kind === "clean_run" || current.kind === "challenge" || current.kind === "payout" ? "big" : "small");
+    celebrate(current.kind === "clean_run" || current.kind === "challenge" || current.kind === "payout" || current.kind === "exit" ? "big" : "small");
   }, [current]);
 
   return (
@@ -123,6 +123,8 @@ function Moment({ e, onDone }: { e: Ev; onDone: () => void }) {
         return { icon: "🌀", kicker: "Twist won", title: e.label.replace(/^Twist won: /, "").replace(/ · rare blueprint unlocked$/, ""), sub: "This week's twist is in the bag." };
       case "payout":
         return { icon: "🧰", kicker: "Friday payout", title: "Week closed", sub: e.label.replace(/^Friday payout · /, "") };
+      case "exit":
+        return { icon: "🥂", kicker: "Exit", title: e.label.replace(/^🥂 Sold /, "Sold ").replace(/ — exit bonus$/, ""), sub: "Bonus coins for your plant. Start something new whenever you want." };
       case "rock":
         return { icon: "🪨", kicker: "Rock crushed", title: e.label.replace(/^(Weekly rock|Quarter rock|Goal) done: /, ""), sub: "" };
       default:

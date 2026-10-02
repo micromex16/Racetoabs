@@ -14,6 +14,7 @@ import { queueParking } from "@/lib/outbox";
 import { cn, RING_COLORS } from "@/lib/utils";
 import { toast } from "sonner";
 import { SpeedrunStrip, Bounty, startSprint, ChallengeCard, PlantCard } from "@/components/game/widgets";
+import { VentureCard } from "@/components/venture/live";
 import { useQ } from "@/lib/client";
 import { Timer } from "lucide-react";
 
@@ -448,9 +449,10 @@ export function StreakAndCadence({ today }: { today: Today }) {
 export function GameRow() {
   const { data: g } = useQ("game");
   return (
-    <section className="grid items-start gap-3 sm:grid-cols-2">
+    <section className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {g ? <ChallengeCard c={g.challenge} compact /> : <div className="glass h-32 animate-pulse rounded-2xl" />}
       <PlantCard />
+      <VentureCard />
     </section>
   );
 }

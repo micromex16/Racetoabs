@@ -24,6 +24,7 @@ import { flushOutbox } from "@/lib/outbox";
 import { CoinPill } from "@/components/game/coin";
 import { GameEvents } from "@/components/game/game-events";
 import { FocusMode } from "@/components/game/widgets";
+import { VentureEvents } from "@/components/venture/live";
 
 function useServiceWorker() {
   React.useEffect(() => {
@@ -210,7 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ───────── Mobile: mic FAB + tab bar ───────── */}
       <button
         onClick={() => ui.openCapture({ voice: true })}
-        hidden={pathname.startsWith("/agent") || pathname.startsWith("/comms") || pathname.startsWith("/build")}
+        hidden={pathname.startsWith("/agent") || pathname.startsWith("/comms") || pathname.startsWith("/build") || pathname.startsWith("/venture")}
         className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-30 grid size-14 place-items-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_12px_30px_-6px_var(--accent)] active:scale-95 lg:hidden"
         aria-label="Dictate a thought"
       >
@@ -258,6 +259,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <EndOfDay />
       <GameEvents />
       <FocusMode />
+      <VentureEvents />
     </div>
   );
 }

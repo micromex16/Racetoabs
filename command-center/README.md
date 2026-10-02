@@ -12,18 +12,19 @@ It never invents priorities. You set the goals and rocks; the app enforces them.
 
 1. [What's inside](#whats-inside)
 2. [The game](#the-game)
-3. [Run locally](#run-locally)
-4. [Deploy to Vercel](#deploy-to-vercel)
-5. [Install on iPhone (PWA) + push notifications](#install-on-iphone-pwa--push-notifications)
-6. [The agent (Anthropic)](#the-agent-anthropic)
-7. [Email — Gmail API (works with Superhuman)](#email--gmail-api-works-with-superhuman)
-8. [Slack](#slack)
-9. [WhatsApp Business](#whatsapp-business)
-10. [Background jobs (cron)](#background-jobs-cron)
-11. [Back up the database](#back-up-the-database)
-12. [Add a metric](#add-a-metric)
-13. [Environment variables](#environment-variables)
-14. [Architecture](#architecture)
+3. [The tycoon game](#the-tycoon-game)
+4. [Run locally](#run-locally)
+5. [Deploy to Vercel](#deploy-to-vercel)
+6. [Install on iPhone (PWA) + push notifications](#install-on-iphone-pwa--push-notifications)
+7. [The agent (Anthropic)](#the-agent-anthropic)
+8. [Email — Gmail API (works with Superhuman)](#email--gmail-api-works-with-superhuman)
+9. [Slack](#slack)
+10. [WhatsApp Business](#whatsapp-business)
+11. [Background jobs (cron)](#background-jobs-cron)
+12. [Back up the database](#back-up-the-database)
+13. [Add a metric](#add-a-metric)
+14. [Environment variables](#environment-variables)
+15. [Architecture](#architecture)
 
 ---
 
@@ -40,9 +41,10 @@ It never invents priorities. You set the goals and rocks; the app enforces them.
 | **Pipeline** | Target → Contacted → Sample Sent → Discovery → RFQ → Quoted → Pilot → Customer. Lanes: Data Center / A&D / Other. Next actions feed Today. CSV import for the 100-account list. |
 | **Comms** | Unified Email / Slack / WhatsApp feed, search, reply, and "→ task / follow-up / pipeline" on every thread. Every outbound message is a draft until you approve. |
 | **Plant** | The game: coins from real work, a town you build, speedruns against your personal best, weekly twists, trophies, records. See [The game](#the-game). |
+| **Company** | The tycoon game: found a pretend company in any industry, lease space, hire, win contracts. It runs live all day, fueled by your real work. See [The tycoon game](#the-tycoon-game). |
 | **Agent** | Chief of staff: reads and writes everything above, ranks your inbox, drafts replies for approval, creates follow-ups from plain speech. Side panel on desktop (`A`), full-screen tab on phone. |
 
-**Keyboard (desktop):** `N` new task · `P` park a thought · `/` search · `A` agent · `V` dictate · `G` then `T` `G` `S` `P` `C` `A` `R` `L` to jump to Today, Goals, Scoreboard, Pipeline, Comms, Accountability, Review, Parking Lot · `⌘K` search.
+**Keyboard (desktop):** `N` new task · `P` park a thought · `/` search · `A` agent · `V` dictate · `G` then `T` `B` `V` `G` `S` `P` `C` `A` `R` `L` to jump to Today, Plant, Company, Goals, Scoreboard, Pipeline, Comms, Accountability, Review, Parking Lot · `⌘K` search.
 
 **Phone:** bottom tabs (Today / Goals / Pipeline / Comms / Agent), mic button on every screen, swipe right = done, swipe left = snooze/park, long-press = delegate.
 
@@ -87,9 +89,40 @@ Work earns **coins**; coins build your **plant**. You're only playing against yo
 
 **Treats.** Under *Plant → Treats*, set real-life rewards and price them in coins. Cash them in when you've earned them, on the honor system.
 
-**Trophies and records.** There are 21 achievements and 7 personal records: fastest clean run, earliest finish, longest streak, most clean days in a week, most founder touches in a week, most sprints in a day, most coins in a week.
+**Trophies and records.** There are 25 achievements (four from the tycoon game) and 7 personal records: fastest clean run, earliest finish, longest streak, most clean days in a week, most founder touches in a week, most sprints in a day, most coins in a week.
 
 Sounds and haptics can be switched off in **Settings → Game**; that's also where you set the sprint length (15/25/45/60). iPhone browsers don't support vibration.
+
+---
+
+## The tycoon game
+
+The second game is a business sim that mirrors the real one. On **Company** (sidebar, or the card on Today) you found a company, lease a space, hire people, sign contracts and keep the team happy — then grow it and sell it, and start another. It can be the same business as yours (contract manufacturing — the "mirror" pick) or something else entirely: coffee roastery, craft brewery, software studio, furniture workshop, bakery, drone maker, apparel brand.
+
+**Its money is pretend.** The company runs on play "bucks" with their own green-bill icon. Bucks, valuations and sale prices are fictional and never connected to Micromex; the agent is told never to treat them as business data. The hard rule still holds: no real financial data anywhere in the app.
+
+**It runs live, all the time.** The company advances in real time on every visit and on every cron tick: staff produce, contracts fill and ship, wages and rent go out, offers arrive, people get better at their jobs, and moods drift. Between 7am and 9pm (your timezone) a decision card pops up every two to three hours: a rush order, a raise request, a poaching attempt, a machine breakdown, a trade show, an angel investor, a buyer who wants to acquire you. Every option says plainly what it does. If you don't answer within 10 hours, the option marked "if you don't answer" happens. Company events show up as toasts anywhere in the app, and new decisions can send a phone push (bell icon on the Company page). If you're away more than 3 days, the company pauses where it was.
+
+**Real work is the fuel.**
+
+| Real life | In the game |
+|---|---|
+| Coins earned in the last 24 hours | **Momentum**, ×0.5 to ×2 (×2.3 with 50 focus sprints): multiplies everything the company makes and how fast offers arrive. 300 coins in a day ≈ +1. |
+| Lifetime coins from real work | **Founder level**, which unlocks leases: shop at level 2, warehouse at 4, plant at 7, campus at 10. |
+| Buildings on your Plant | **HQ perks**: production buildings add output, logistics raise contract prices, people buildings lift team mood, energy cuts rent and upkeep, decor and landmarks speed up reputation. |
+| Real trophies | **Connections**: first RFQ → contracts pay 5% more · Data Center pilot → bigger offers more often · first new customer → offers 20% faster · four Friday reviews → team mood +5 · 10-day streak → output +5% · 50 sprints → higher momentum cap. |
+| Coins you choose to put in | Bucks at 1 coin = 25 bucks (one-way). |
+
+Coins also pay for founder moves: a pep talk (40 coins, +15 mood for everyone, once every 4 hours), a job ad (30, fresh and better candidates), or pitching a customer yourself (60, a new offer now).
+
+**How the company works**
+
+- **Space.** Garage (3 seats, 1 machine) → small shop (8, 3) → warehouse (18, 6) → plant (40, 12) → campus (90, 24). Bigger spaces cost bucks to move into and more rent.
+- **People.** Four roles, named for the industry: operators make the product, sales bring in offers (and each one lets you run one more contract at once), engineers make every operator more productive, managers keep mood up (each covers 8 people). Candidates have 1–5 stars, a wage, and sometimes a trait: Hustler, Loyal, Mentor, Rookie, Star or Steady. A hire costs 8 hours' wages as a signing bonus. People get better with time on the job. Mood falls when you're short of bucks, short of managers, or ignore a raise request; under 20 for six hours, they quit.
+- **You.** The founder works the floor for free, and the better your real day, the more you get done.
+- **Machines.** Five tiers per industry. Each one boosts one operator's output (best operators first); bigger tiers need bigger spaces.
+- **Contracts.** Offers come from customers with a size, a deadline and a price. Ship on time for full pay and reputation; miss the deadline and you get half pay for what you finished and lose reputation. Reputation unlocks bigger jobs: small → regular (15) → big (40) → major (90) → anchor (180). With no contracts on the books, you sell at walk-in prices, which barely cover the bills.
+- **Selling.** After 3 days, you can sell at the company's worth: about a month of recent profit, plus reputation, equipment, bucks in the bank and the team's talent. Buyers sometimes come to you with a better offer. Selling pays an **exit bonus in real coins** (worth ÷ 300, capped at 10,000, minus any share sold to angel investors). Sold and wound-down companies are kept under *Past companies*. Trophies: Open for business, Payroll (10 people), Exit!, Serial founder (3 exits).
 
 ---
 
@@ -322,7 +355,7 @@ What the scopes are for:
 
 ## Background jobs (cron)
 
-Everything scheduled goes through one idempotent endpoint, `/api/cron/tick`: recurring weekly tasks, Parking Lot items whose date has arrived, scoreboard snapshots, Gmail/Slack sync, inbox ranking, agent picks, and the 7:00 / 9:00 / 4:30 / Friday pushes (each sent once per day).
+Everything scheduled goes through one idempotent endpoint, `/api/cron/tick`: recurring weekly tasks, Parking Lot items whose date has arrived, scoreboard snapshots, the tycoon company's clock, Gmail/Slack sync, inbox ranking, agent picks, and the 7:00 / 9:00 / 4:30 / Friday pushes (each sent once per day).
 
 - **Vercel Pro:** nothing to do; `vercel.json` runs it every 5 minutes.
 - **Vercel Hobby** (cron limited to once a day): remove the `crons` block from `vercel.json` and use a free external pinger such as [cron-job.org](https://cron-job.org) to call
@@ -407,6 +440,8 @@ src/
   app/api/webhooks/*     Slack + WhatsApp
   lib/services/*         business logic (goals roll-up, daily picks, review, scoreboard, pipeline, comms)
   lib/agent/*            prompt, tools, streaming loop, picks, inbox ranking, drafting
+  lib/game/*             coins ledger, hooks, plant, twists, records, sprints
+  lib/venture/*          tycoon game: catalog, pure live simulation, decision cards, service
   lib/integrations/*     CommsAdapter interface + Gmail / Slack / WhatsApp adapters, encrypted token store
   proxy.ts               password gate (Next 16 "proxy", formerly middleware)
 prisma/schema.prisma     data model — see PLAN.md

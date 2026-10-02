@@ -14,6 +14,7 @@ import * as pipeline from "../services/pipeline";
 import { globalSearch } from "../services/search";
 import { db } from "../db";
 import { getGame } from "../game/state";
+import { ventureBrief } from "../venture/service";
 import { fmtDuration } from "../game/catalog";
 
 // The agent's hands. Every tool calls the same service layer as the UI.
@@ -460,7 +461,7 @@ export const INTERNAL_TOOLS = [
   tool({
     name: "get_game_state",
     description:
-      "The president's game layer: coin balance, coins earned today/this week, today's speedrun vs personal best, this week's twist (challenge) and its progress, personal records, recent achievements, plant power, streak freezes. Use it to coach: celebrate records, nudge toward the twist, point out a growing bounty.",
+      "The president's game layer: coin balance, coins earned today/this week, today's speedrun vs personal best, this week's twist (challenge) and its progress, personal records, recent achievements, plant power, streak freezes, and their pretend tycoon company (play-money \"bucks\", never real financials). Use it to coach: celebrate records, nudge toward the twist, point out a growing bounty, or note that real work is what powers the game company's momentum.",
     schema: z.object({}),
     label: () => "Read the game",
     run: async () => {
@@ -482,6 +483,7 @@ export const INTERNAL_TOOLS = [
         achievements_unlocked: g.achievements.filter((a) => a.unlockedAt).map((a) => a.title),
         biggest_bounties: [...t.overdue, ...t.followUpsDue].filter((x) => x.bounty > 0).sort((a, b) => b.bounty - a.bounty).slice(0, 3).map((x) => `${x.title}: +${x.bounty}`),
         buildings: g.buildings.length,
+        tycoon_company: await ventureBrief(),
       };
     },
   }),

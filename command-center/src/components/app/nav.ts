@@ -1,8 +1,9 @@
-import { Sun, Target, Gauge, Kanban, MessagesSquare, Users, CalendarCheck, ParkingSquare, Settings, Sparkles, Factory } from "lucide-react";
+import { Sun, Target, Gauge, Kanban, MessagesSquare, Users, CalendarCheck, ParkingSquare, Settings, Sparkles, Factory, Briefcase } from "lucide-react";
 
 export const NAV = [
   { href: "/", label: "Today", icon: Sun, key: "t" },
   { href: "/build", label: "Plant", icon: Factory, key: "b" },
+  { href: "/venture", label: "Company", icon: Briefcase, key: "v" },
   { href: "/goals", label: "Goals", icon: Target, key: "g" },
   { href: "/scoreboard", label: "Scoreboard", icon: Gauge, key: "s" },
   { href: "/pipeline", label: "Pipeline", icon: Kanban, key: "p" },
