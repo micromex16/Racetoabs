@@ -13,6 +13,7 @@ import { globalSearch } from "../services/search";
 import * as comms from "../services/comms";
 import { integrationsStatus, syncProvider } from "../integrations/registry";
 import { disconnect } from "../integrations/store";
+import { slackReact } from "../integrations/slack";
 import { getSettings, updateSettings } from "../settings";
 import { conversationView, listConversations } from "../agent/run";
 import { agentRepick } from "../agent/picks";
@@ -207,6 +208,7 @@ export const mutations = {
   "thread.read": def(id, (i) => comms.markThreadRead(i.id)),
   "thread.archive": def(id.extend({ archived: z.boolean().optional() }), (i) => comms.archiveThread(i.id, i.archived ?? true)),
   "thread.reply": def(id.extend({ body: z.string().min(1) }), (i) => comms.replyNow(i.id, i.body)),
+  "thread.react": def(id.extend({ emoji: z.string().optional() }), (i) => slackReact(i.id, i.emoji)),
   "thread.summarize": def(id, (i) => summarizeThread(i.id)),
   "thread.agentDraft": def(id.extend({ instructions: z.string().optional() }), (i) => draftReply(i.id, i.instructions)),
   "draft.create": def(

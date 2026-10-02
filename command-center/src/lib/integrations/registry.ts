@@ -2,10 +2,11 @@ import { db } from "../db";
 import { registerTickHook } from "../hooks";
 import type { CommsAdapter, Provider } from "./types";
 import { gmailAdapter } from "./gmail";
+import { slackAdapter } from "./slack";
 import { markError } from "./store";
 
 // Pluggable adapters. Add a new channel by implementing CommsAdapter and listing it here.
-export const ADAPTERS: CommsAdapter[] = [gmailAdapter];
+export const ADAPTERS: CommsAdapter[] = [gmailAdapter, slackAdapter];
 
 export function adapterFor(p: Provider | string) {
   return ADAPTERS.find((a) => a.provider === p);

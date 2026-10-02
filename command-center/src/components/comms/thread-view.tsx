@@ -111,6 +111,11 @@ export function ThreadView({ id, onBack, autoReply }: { id: string; onBack?: () 
             {agentBusy === "summary" ? <Loader2 className="animate-spin" /> : <FileText />} Summarize
           </Button>
         )}
+        {t.channel === "SLACK" && (
+          <Button size="sm" variant="ghost" onClick={() => call("thread.react", { id, emoji: "thumbsup" }).then(() => toast.success("👍 sent"))}>
+            👍
+          </Button>
+        )}
         {t.unread && (
           <Button size="sm" variant="ghost" onClick={() => call("thread.read", { id })}>
             <MailOpen /> Read
