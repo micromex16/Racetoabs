@@ -1,0 +1,540 @@
+// Micromex CEO Command Center — data model
+//
+// HARD RULE: no financial data. There are deliberately no fields for revenue,
+// margin, EBITDA, cash, pricing, invoices, deal value or anything like them.
+// Metrics are activity and pipeline counts only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ───────────────────────────── Settings ─────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// ───────────────────────────── Goals ─────────────────────────────
+// One tree: EXIT → ANNUAL → QUARTERLY (rocks) → WEEKLY (rocks) → Tasks.
+
+enum GoalLevel {
+  EXIT
+  ANNUAL
+  QUARTERLY
+  WEEKLY
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+  DONE
+}
+
+model Goal {
+  id             String     @id @default(cuid())
+  level          GoalLevel
+  title          String
+  notes          String     @default("")
+  owner          String     @default("Me")
+  status         GoalStatus @default(NOT_STARTED)
+  /// Manual override 0–100. Null = roll up from children / tasks / measures.
+  manualProgress Int?
+  /// [{ metricKey: string, target: number }] — progress from scoreboard metrics
+  measures       Json       @default("[]")
+  periodStart    DateTime?
+  dueDate        DateTime?
+  /// Year for ANNUAL, year+quarter for QUARTERLY, weekStart for WEEKLY
+  year           Int?
+  quarter        Int?
+  weekStart      DateTime?
+  sortOrder      Int        @default(0)
+  completedAt    DateTime?
+  archivedAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  parentId String?
+  parent   Goal?   @relation("GoalTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Goal[]  @relation("GoalTree")
+
+  tasks         Task[]
+  pipelineCards PipelineCard[]
+  followUps     FollowUp[]
+  recurring     RecurringTask[]
+
+  @@index([level, archivedAt])
+  @@index([parentId])
+}
+
+// ───────────────────────────── Tasks ─────────────────────────────
+
+enum TaskStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  title        String
+  notes        String     @default("")
+  status       TaskStatus @default(OPEN)
+  dueDate      DateTime?
+  snoozedUntil DateTime?
+  doneAt       DateTime?
+  sortOrder    Int        @default(0)
+  source       String     @default("manual") // manual | voice | agent | parking | comms | recurring
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  goalId String?
+  goal   Goal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  /// Delegated to someone (Accountability)
+  ownerId String?
+  owner   Person? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  recurringId String?
+  recurring   RecurringTask? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  weekStart   DateTime?
+
+  threadId String?
+  thread   Thread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  followUps FollowUp[]
+
+  @@unique([recurringId, weekStart])
+  @@index([status, dueDate])
+  @@index([goalId])
+}
+
+model RecurringTask {
+  id          String   @id @default(cuid())
+  title       String
+  /// 0 = Sunday … 6 = Saturday; the day the instance is due each week
+  weekday     Int      @default(5)
+  /// Optional weekly count target (e.g. 20 outreach touches)
+  targetCount Int?
+  /// Scoreboard metric the count rolls into
+  metricKey   String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  goalId String?
+  goal   Goal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  tasks Task[]
+}
+
+// ───────────────────────────── Parking Lot ─────────────────────────────
+
+enum ParkingStatus {
+  OPEN
+  PROMOTED
+  SCHEDULED
+  DELETED
+}
+
+model ParkingItem {
+  id           String        @id @default(cuid())
+  text         String
+  source       String        @default("typed") // typed | voice | launch | agent | drift | comms
+  status       ParkingStatus @default(OPEN)
+  scheduledFor DateTime?
+  taskId       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// ───────────────────────────── Daily rhythm ─────────────────────────────
+
+model DailyPlan {
+  id         String    @id @default(cuid())
+  /// Local calendar date (YYYY-MM-DD) in the user's timezone
+  date       String    @unique
+  /// [{ kind: "task"|"followup"|"pipeline", refId, title, reason, rockId? }]
+  picks      Json      @default("[]")
+  /// Candidates the agent considered — kept so a swap is instant
+  candidates Json      @default("[]")
+  pickedBy   String    @default("heuristic") // heuristic | agent
+  launchedAt DateTime?
+  closedAt   DateTime?
+  allDone    Boolean   @default(false)
+  mindDump   String    @default("")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model WeeklyReview {
+  id         String    @id @default(cuid())
+  weekStart  DateTime  @unique
+  /// Snapshot of said-vs-done at close
+  snapshot   Json      @default("{}")
+  notes      String    @default("")
+  wins       String    @default("")
+  closedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+// ───────────────────────────── Accountability ─────────────────────────────
+
+model Person {
+  id         String   @id @default(cuid())
+  name       String
+  role       String   @default("")
+  email      String?
+  slackId    String?
+  whatsapp   String?
+  isTeam     Boolean  @default(true)
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  tasks     Task[]
+  followUps FollowUp[]
+}
+
+enum FollowUpStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+model FollowUp {
+  id        String         @id @default(cuid())
+  title     String
+  dueDate   DateTime
+  status    FollowUpStatus @default(OPEN)
+  notes     String         @default("")
+  doneAt    DateTime?
+  remindedAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  personId String?
+  person   Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  taskId String?
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  goalId String?
+  goal   Goal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  pipelineCardId String?
+  pipelineCard   PipelineCard? @relation(fields: [pipelineCardId], references: [id], onDelete: SetNull)
+
+  threadId String?
+  thread   Thread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  touches Touch[]
+
+  @@index([status, dueDate])
+}
+
+model Touch {
+  id         String   @id @default(cuid())
+  note       String
+  channel    String   @default("note") // note | email | slack | whatsapp | call | in-person
+  at         DateTime @default(now())
+
+  followUpId String
+  followUp   FollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────────── Scoreboard ─────────────────────────────
+
+enum MetricAggregation {
+  SUM // weekly counts, rolled up YTD
+  LATEST // point-in-time snapshot (e.g. pilots live, % of volume)
+}
+
+enum MetricSource {
+  MANUAL
+  AUTO // computed from pipeline
+}
+
+model Metric {
+  id          String            @id @default(cuid())
+  key         String            @unique
+  name        String
+  description String            @default("")
+  unit        String            @default("") // "", "%", "posts", …  (never currency)
+  aggregation MetricAggregation @default(SUM)
+  source      MetricSource      @default(MANUAL)
+  /// For AUTO metrics: which pipeline computation feeds it
+  autoKey     String?
+  /// Weekly target for SUM metrics, level target for LATEST metrics
+  target      Float?
+  /// Optional YTD target for SUM metrics
+  ytdTarget   Float?
+  /// true = lower is better (e.g. % of volume from top customer)
+  lowerIsBetter Boolean         @default(false)
+  sortOrder   Int               @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime          @default(now())
+
+  entries MetricEntry[]
+}
+
+model MetricEntry {
+  id        String   @id @default(cuid())
+  weekStart DateTime
+  value     Float
+  note      String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  metricId String
+  metric   Metric @relation(fields: [metricId], references: [id], onDelete: Cascade)
+
+  @@unique([metricId, weekStart])
+}
+
+model ExitCriterion {
+  id        String   @id @default(cuid())
+  title     String
+  notes     String   @default("")
+  weight    Float    @default(1)
+  /// 0–100 manual score
+  progress  Int      @default(0)
+  /// Optional auto-score from a LATEST metric vs threshold
+  metricKey String?
+  threshold Float?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ───────────────────────────── Pipeline ─────────────────────────────
+
+enum PipelineStage {
+  TARGET
+  CONTACTED
+  SAMPLE_SENT
+  DISCOVERY
+  RFQ
+  QUOTED
+  PILOT
+  CUSTOMER
+}
+
+enum Lane {
+  DATA_CENTER
+  AD
+  OTHER
+}
+
+model PipelineCard {
+  id             String        @id @default(cuid())
+  company        String
+  lane           Lane          @default(OTHER)
+  stage          PipelineStage @default(TARGET)
+  tier           String        @default("") // A / B / C
+  nextAction     String        @default("")
+  nextActionDate DateTime?
+  notes          String        @default("")
+  website        String        @default("")
+  sortOrder      Int           @default(0)
+  stageChangedAt DateTime      @default(now())
+  wonAt          DateTime?
+  archivedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  goalId String?
+  goal   Goal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  contacts  PipelineContact[]
+  events    PipelineEvent[]
+  threads   Thread[]
+  followUps FollowUp[]
+
+  @@index([stage, archivedAt])
+  @@index([nextActionDate])
+}
+
+model PipelineContact {
+  id        String  @id @default(cuid())
+  name      String
+  title     String  @default("")
+  email     String?
+  phone     String?
+  linkedin  String?
+  isPrimary Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  cardId String
+  card   PipelineCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+}
+
+model PipelineEvent {
+  id        String         @id @default(cuid())
+  fromStage PipelineStage?
+  toStage   PipelineStage
+  at        DateTime       @default(now())
+
+  cardId String
+  card   PipelineCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([toStage, at])
+}
+
+// ───────────────────────────── Comms ─────────────────────────────
+
+enum Channel {
+  EMAIL
+  SLACK
+  WHATSAPP
+}
+
+model Thread {
+  id            String   @id @default(cuid())
+  channel       Channel
+  externalId    String
+  subject       String   @default("")
+  /// [{ name, address }]
+  participants  Json     @default("[]")
+  snippet       String   @default("")
+  lastMessageAt DateTime @default(now())
+  unread        Boolean  @default(false)
+  unreadCount   Int      @default(0)
+  archived      Boolean  @default(false)
+  /// Slack channel / Gmail labels / WhatsApp number — adapter-specific
+  meta          Json     @default("{}")
+  aiSummary     String?
+  aiRank        Float?
+  aiRankReason  String?
+  rankedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  pipelineCardId String?
+  pipelineCard   PipelineCard? @relation(fields: [pipelineCardId], references: [id], onDelete: SetNull)
+
+  messages  Message[]
+  drafts    Draft[]
+  tasks     Task[]
+  followUps FollowUp[]
+
+  @@unique([channel, externalId])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  channel    Channel
+  externalId String
+  fromName   String   @default("")
+  fromAddr   String   @default("")
+  to         Json     @default("[]")
+  body       String   @default("")
+  sentAt     DateTime
+  isFromMe   Boolean  @default(false)
+  meta       Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  threadId String
+  thread   Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, externalId])
+  @@index([threadId, sentAt])
+}
+
+enum DraftStatus {
+  PENDING
+  SENT
+  DISCARDED
+  FAILED
+}
+
+/// Every outbound message is a Draft first. Nothing is sent without the
+/// user pressing Approve & Send.
+model Draft {
+  id        String      @id @default(cuid())
+  channel   Channel
+  to        String      @default("")
+  subject   String      @default("")
+  body      String
+  status    DraftStatus @default(PENDING)
+  createdBy String      @default("user") // user | agent
+  rationale String      @default("")
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  threadId String?
+  thread   Thread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+}
+
+model Integration {
+  provider   String    @id // gmail | slack | whatsapp
+  status     String    @default("disconnected") // connected | disconnected | error
+  /// AES-256-GCM encrypted JSON of tokens
+  secret     String?
+  /// Sync cursors (Gmail historyId, Slack per-channel ts, …)
+  cursor     Json      @default("{}")
+  config     Json      @default("{}")
+  account    String?
+  lastSyncAt DateTime?
+  lastError  String?
+  updatedAt  DateTime  @updatedAt
+}
+
+// ───────────────────────────── Push / Agent ─────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  keys      Json
+  userAgent String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model NotificationLog {
+  id     String   @id @default(cuid())
+  /// e.g. "morning:2026-10-02", "close:2026-10-02", "followup:<id>:2026-10-02"
+  key    String   @unique
+  sentAt DateTime @default(now())
+}
+
+model AgentConversation {
+  id        String         @id @default(cuid())
+  title     String         @default("New conversation")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  messages  AgentMessage[]
+}
+
+model AgentMessage {
+  id        String   @id @default(cuid())
+  role      String // user | assistant
+  /// user (typed) | assistant | tool_results
+  kind      String   @default("user")
+  /// Anthropic MessageParam content (string or blocks) — stored verbatim
+  content   Json
+  /// Short display text (user text, or assistant final text)
+  display   String   @default("")
+  /// Tool calls made during this assistant turn, for the UI
+  toolLog   Json     @default("[]")
+  createdAt DateTime @default(now())
+
+  conversationId String
+  conversation   AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
