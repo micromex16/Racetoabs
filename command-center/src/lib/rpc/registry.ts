@@ -11,6 +11,11 @@ import * as pipeline from "../services/pipeline";
 import * as recurring from "../services/recurring";
 import { globalSearch } from "../services/search";
 import { getSettings, updateSettings } from "../settings";
+import { conversationView, listConversations } from "../agent/run";
+import { agentRepick } from "../agent/picks";
+import { agentConfigured } from "../agent/client";
+import { db } from "../db";
+import { todayKey } from "../time";
 
 // One registry for the UI (via /api/q and /api/m), the agent's tools and cron.
 
@@ -89,6 +94,9 @@ export const queries = {
   recurring: def(z.object({}), () => recurring.listRecurring()),
   search: def(z.object({ q: z.string().default("") }), (i) => globalSearch(i.q)),
   settings: def(z.object({}), () => getSettings()),
+  "agent.status": def(z.object({}), async () => ({ configured: agentConfigured(), model: process.env.ANTHROPIC_MODEL || "claude-opus-5-5" })),
+  "agent.conversations": def(z.object({}), () => listConversations()),
+  "agent.messages": def(id, (i) => conversationView(i.id)),
 };
 
 export const mutations = {
@@ -121,6 +129,8 @@ export const mutations = {
   // daily
   "day.launch": def(z.object({ mindDump: z.string().optional() }), (i) => daily.launchDay(i)),
   "day.repick": def(z.object({}), () => daily.repick()),
+  "day.agentRepick": def(z.object({}), async () => agentRepick(todayKey((await getSettings()).timezone))),
+  "agent.deleteConversation": def(id, (i) => db.agentConversation.delete({ where: { id: i.id } })),
   "day.swap": def(z.object({ slot: z.number().int().min(0).max(2), kind: pickKind, refId: z.string() }), (i) => daily.swapPick(i.slot, i)),
   "day.pipelineDone": def(z.object({ refId: z.string(), done: z.boolean().optional() }), (i) => daily.markPipelinePickDone(i.refId, i.done ?? true)),
   "day.close": def(z.object({ actions: z.array(z.object({ kind: pickKind, refId: z.string(), action: z.enum(["done", "carry", "park"]) })) }), (i) => daily.closeDay(i)),

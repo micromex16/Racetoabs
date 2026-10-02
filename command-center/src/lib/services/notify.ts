@@ -3,6 +3,7 @@ import { getSettings } from "../settings";
 import { localMinutes, parseHHMM, todayKey, weekday, dateToKey, keyToDate } from "../time";
 import { getToday } from "./daily";
 import { sendOnce } from "../push";
+import { agentRepick } from "../agent/picks";
 
 const WINDOW = 90; // minutes after the scheduled time we still send (covers missed ticks)
 
@@ -49,6 +50,13 @@ export async function runScheduledNotifications(now = new Date()) {
   const out: Record<string, unknown> = {};
 
   const morning = parseHHMM(s.morningTime);
+  // Let the agent pick the day ~15 min before the card (falls back to heuristic picks).
+  if (workday && mins >= morning - 15 && mins < morning + WINDOW) {
+    const plan = await db.dailyPlan.findUnique({ where: { date: today } });
+    if (!plan?.launchedAt && plan?.pickedBy !== "agent") {
+      out.picks = await agentRepick(today).catch((e) => ({ error: (e as Error).message }));
+    }
+  }
   if (workday && mins >= morning && mins < morning + WINDOW) out.morning = await sendOnce(`morning:${today}`, await morningCard());
 
   const close = parseHHMM(s.closeTime);

@@ -2,12 +2,12 @@
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { X, ArrowRight, ArrowLeft, Shuffle, Mic, Square, CheckSquare, Bell, Kanban, Rocket, RotateCcw } from "lucide-react";
+import { X, ArrowRight, ArrowLeft, Shuffle, Mic, Square, CheckSquare, Bell, Kanban, Rocket, RotateCcw, Sparkles } from "lucide-react";
 import { Ring } from "@/components/viz/ring";
 import { Bar } from "@/components/viz/sparkline";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
-import { call, type QOut } from "@/lib/client";
+import { call, useQ, type QOut } from "@/lib/client";
 import { ui } from "@/lib/ui-store";
 import { useSpeech } from "@/hooks/use-speech";
 import { celebrate } from "@/lib/confetti";
@@ -26,6 +26,8 @@ export function MorningLaunch({ today }: { today: Today }) {
   const [dump, setDump] = React.useState("");
   const [swapSlot, setSwapSlot] = React.useState<number | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [agentBusy, setAgentBusy] = React.useState(false);
+  const { data: agent } = useQ("agent.status");
   const speech = useSpeech({ onFinal: (t) => setDump((d) => (d ? d.trim() + "\n" : "") + t) });
 
   const go = (n: number) => {
@@ -124,11 +126,29 @@ export function MorningLaunch({ today }: { today: Today }) {
             </motion.div>
           );
         })}
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-2">
           <Button size="sm" variant="ghost" onClick={() => call("day.repick", {})}>
             <RotateCcw /> Re-pick
           </Button>
+          {agent?.configured && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={agentBusy}
+              onClick={async () => {
+                setAgentBusy(true);
+                try {
+                  await call("day.agentRepick", {});
+                } finally {
+                  setAgentBusy(false);
+                }
+              }}
+            >
+              <Sparkles /> {agentBusy ? "Thinking…" : "Let the agent pick"}
+            </Button>
+          )}
         </div>
+        {today.plan.pickedBy === "agent" && <p className="text-center text-[11px] text-muted">Picked by your chief of staff.</p>}
       </div>
       <SwapDialog today={today} slot={swapSlot} onClose={() => setSwapSlot(null)} />
     </div>,

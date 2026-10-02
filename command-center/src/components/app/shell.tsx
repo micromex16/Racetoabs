@@ -205,6 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ───────── Mobile: mic FAB + tab bar ───────── */}
       <button
         onClick={() => ui.openCapture({ voice: true })}
+        hidden={pathname.startsWith("/agent")}
         className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-30 grid size-14 place-items-center rounded-full bg-gradient-to-br from-accent to-accent-2 text-white shadow-[0_12px_30px_-6px_var(--accent)] active:scale-95 lg:hidden"
         aria-label="Dictate a thought"
       >
