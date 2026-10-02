@@ -10,10 +10,14 @@ import * as metrics from "../services/metrics";
 import * as pipeline from "../services/pipeline";
 import * as recurring from "../services/recurring";
 import { globalSearch } from "../services/search";
+import * as comms from "../services/comms";
+import { integrationsStatus, syncProvider } from "../integrations/registry";
+import { disconnect } from "../integrations/store";
 import { getSettings, updateSettings } from "../settings";
 import { conversationView, listConversations } from "../agent/run";
 import { agentRepick } from "../agent/picks";
 import { agentConfigured } from "../agent/client";
+import { summarizeThread, draftReply } from "../agent/comms";
 import { db } from "../db";
 import { todayKey } from "../time";
 
@@ -94,6 +98,13 @@ export const queries = {
   recurring: def(z.object({}), () => recurring.listRecurring()),
   search: def(z.object({ q: z.string().default("") }), (i) => globalSearch(i.q)),
   settings: def(z.object({}), () => getSettings()),
+  threads: def(
+    z.object({ channel: z.enum(["EMAIL", "SLACK", "WHATSAPP"]).optional(), q: z.string().optional(), filter: z.enum(["all", "unread", "important", "linked", "archived"]).optional() }),
+    (i) => comms.listThreads(i),
+  ),
+  thread: def(id, (i) => comms.getThread(i.id)),
+  drafts: def(z.object({}), () => comms.listDrafts()),
+  integrations: def(z.object({}), () => integrationsStatus()),
   "agent.status": def(z.object({}), async () => ({ configured: agentConfigured(), model: process.env.ANTHROPIC_MODEL || "claude-opus-5-5" })),
   "agent.conversations": def(z.object({}), () => listConversations()),
   "agent.messages": def(id, (i) => conversationView(i.id)),
@@ -192,6 +203,21 @@ export const mutations = {
   "card.import": def(z.object({ csv: z.string().min(1), lane: lane.optional(), stage: stage.optional() }), (i) => pipeline.importCards(i.csv, i)),
   "card.linkThread": def(z.object({ cardId: z.string().nullable(), threadId: z.string() }), (i) => pipeline.linkThread(i.cardId, i.threadId)),
   "card.nextDone": def(id.extend({ nextAction: z.string(), nextActionDate: z.string().nullable().optional() }), (i) => pipeline.completeNextAction(i.id, i)),
+  // comms
+  "thread.read": def(id, (i) => comms.markThreadRead(i.id)),
+  "thread.archive": def(id.extend({ archived: z.boolean().optional() }), (i) => comms.archiveThread(i.id, i.archived ?? true)),
+  "thread.reply": def(id.extend({ body: z.string().min(1) }), (i) => comms.replyNow(i.id, i.body)),
+  "thread.summarize": def(id, (i) => summarizeThread(i.id)),
+  "thread.agentDraft": def(id.extend({ instructions: z.string().optional() }), (i) => draftReply(i.id, i.instructions)),
+  "draft.create": def(
+    z.object({ threadId: z.string().nullable().optional(), channel: z.enum(["EMAIL", "SLACK", "WHATSAPP"]).optional(), to: z.string().optional(), subject: z.string().optional(), body: z.string().min(1) }),
+    (i) => comms.createDraft({ ...i, createdBy: "user" }),
+  ),
+  "draft.update": def(id.extend({ to: z.string().optional(), subject: z.string().optional(), body: z.string().optional() }), ({ id: did, ...rest }) => comms.updateDraft(did, rest)),
+  "draft.send": def(id, (i) => comms.sendDraft(i.id)),
+  "draft.discard": def(id, (i) => comms.discardDraft(i.id)),
+  "integration.sync": def(z.object({ provider: z.enum(["gmail", "slack", "whatsapp"]), full: z.boolean().optional() }), (i) => syncProvider(i.provider, { full: i.full })),
+  "integration.disconnect": def(z.object({ provider: z.enum(["gmail", "slack", "whatsapp"]) }), async (i) => (await disconnect(i.provider), { ok: true })),
   // recurring
   "recurring.upsert": def(
     z.object({ id: z.string().nullable().optional(), title: z.string().min(1), weekday: z.number().int().min(0).max(6).optional(), targetCount: z.number().int().nullable().optional(), metricKey: z.string().nullable().optional(), goalId: z.string().nullable().optional(), active: z.boolean().optional() }),

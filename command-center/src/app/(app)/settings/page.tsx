@@ -29,7 +29,9 @@ export default function SettingsPage() {
       </section>
       <section id="integrations">
         <SectionTitle>Integrations</SectionTitle>
-        <Integrations />
+        <React.Suspense>
+          <Integrations />
+        </React.Suspense>
       </section>
       <People />
       <Cadence />
