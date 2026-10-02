@@ -23,13 +23,20 @@ const METRICS = [
 export async function seedIfEmpty() {
   const seeded = await db.setting.findUnique({ where: { key: "seededAt" } });
   if (seeded) return false;
-  const anyGoal = await db.goal.count();
-  if (anyGoal > 0) {
-    await db.setting.create({ data: { key: "seededAt", value: new Date().toISOString() } });
+  // Claim the seed with a unique row so two cold-starting instances can't both seed.
+  const claim = await db.setting.createMany({ data: [{ key: "seededAt", value: "in-progress" }], skipDuplicates: true });
+  if (claim.count === 0) return false;
+  if ((await db.goal.count()) > 0) {
+    await db.setting.update({ where: { key: "seededAt" }, data: { value: new Date().toISOString() } });
     return false;
   }
-  await seed();
-  return true;
+  try {
+    await seed();
+    return true;
+  } catch (e) {
+    await db.setting.delete({ where: { key: "seededAt" } }).catch(() => {});
+    throw e;
+  }
 }
 
 export async function seed() {
@@ -134,5 +141,5 @@ export async function seed() {
     ],
   });
 
-  await db.setting.upsert({ where: { key: "seededAt" }, create: { key: "seededAt", value: new Date().toISOString() }, update: {} });
+  await db.setting.upsert({ where: { key: "seededAt" }, create: { key: "seededAt", value: new Date().toISOString() }, update: { value: new Date().toISOString() } });
 }
