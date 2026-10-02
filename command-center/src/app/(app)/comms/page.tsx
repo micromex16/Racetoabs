@@ -40,6 +40,7 @@ function Hub() {
   const [q, setQ] = React.useState("");
   const [dq, setDq] = React.useState("");
   const [compose, setCompose] = React.useState(false);
+  const [ranking, setRanking] = React.useState(false);
   React.useEffect(() => {
     const t = setTimeout(() => setDq(q), 250);
     return () => clearTimeout(t);
@@ -167,7 +168,25 @@ function Hub() {
           <h1 className="text-2xl font-semibold tracking-tight">Comms</h1>
           <p className="text-xs text-muted">Email · Slack · WhatsApp in one feed. Turn anything into a task, follow-up or pipeline card.</p>
         </div>
-        <Button size="sm" variant="secondary" className={cn("ml-auto", open && "hidden lg:inline-flex")} onClick={() => setCompose(true)} disabled={!connected.length}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn("ml-auto", open && "hidden lg:inline-flex")}
+          disabled={ranking}
+          onClick={async () => {
+            setRanking(true);
+            try {
+              const r = await call("inbox.rank", {});
+              setFilter("important");
+              toast.success(r.ranked ? `Ranked ${r.ranked} conversations against your rocks` : "Ranked by heuristics");
+            } finally {
+              setRanking(false);
+            }
+          }}
+        >
+          <Sparkles /> {ranking ? "Ranking…" : "Rank inbox"}
+        </Button>
+        <Button size="sm" variant="secondary" className={cn(open && "hidden lg:inline-flex")} onClick={() => setCompose(true)} disabled={!connected.length}>
           <PenSquare /> New
         </Button>
       </div>

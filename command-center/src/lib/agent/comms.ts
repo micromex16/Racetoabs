@@ -48,3 +48,52 @@ export async function draftReply(threadId: string, instructions?: string) {
   if (!res.parsed_output) throw new Error("The agent couldn't draft a reply for this thread.");
   return createDraft({ threadId, body: res.parsed_output.body, createdBy: "agent", rationale: scrubMoney(res.parsed_output.rationale) });
 }
+
+const RankSchema = z.object({
+  threads: z.array(
+    z.object({
+      id: z.string(),
+      score: z.number().min(0).max(100).describe("Importance to the CEO's rocks and relationships today, 0–100"),
+      reason: z.string().describe("Few words: why it matters, e.g. 'Rock #5: RFQ from Helios'"),
+      summary: z.string().describe("One line, ≤ 20 words: what it is and what's asked"),
+    }),
+  ),
+});
+
+/** Agent ranks the open inbox against the CEO's rocks and writes one-line summaries. */
+export async function rankInbox(limit = 40) {
+  const threads = await db.thread.findMany({
+    where: { archived: false, lastMessageAt: { gte: new Date(Date.now() - 10 * 86_400_000) } },
+    orderBy: { lastMessageAt: "desc" },
+    take: limit,
+    include: { messages: { orderBy: { sentAt: "desc" }, take: 3 }, pipelineCard: { select: { company: true, stage: true } } },
+  });
+  if (!threads.length) return { ranked: 0 };
+  const ctx = await liveContext();
+  const items = threads.map((t) => ({
+    id: t.id,
+    channel: t.channel,
+    subject: t.subject,
+    from: t.messages.find((m) => !m.isFromMe)?.fromName ?? "",
+    unread: t.unread,
+    account: t.pipelineCard ? `${t.pipelineCard.company} (${t.pipelineCard.stage})` : undefined,
+    last_messages: t.messages.map((m) => `${m.isFromMe ? "ME" : m.fromName}: ${m.body.slice(0, 600)}`).reverse(),
+  }));
+  const res = await anthropic().beta.messages.parse({
+    model: AGENT_MODEL,
+    max_tokens: 8000,
+    betas: [FALLBACK_BETA],
+    fallbacks: "default",
+    output_config: { effort: "low", format: betaZodOutputFormat(RankSchema) },
+    system: `You triage the president's inbox (email, Slack, WhatsApp). Score each thread 0–100 by how much it matters to their own rocks and goals today: customers and pipeline accounts, people they delegate to, anything blocking a rock, explicit asks and deadlines score high; newsletters, FYIs and automated mail score low. ${NO_MONEY}\n\n${ctx}`,
+    messages: [{ role: "user", content: JSON.stringify(items) }],
+  });
+  if (!res.parsed_output) return { ranked: 0 };
+  let ranked = 0;
+  for (const r of res.parsed_output.threads) {
+    if (!threads.some((t) => t.id === r.id)) continue;
+    await db.thread.update({ where: { id: r.id }, data: { aiRank: r.score, aiRankReason: scrubMoney(r.reason), aiSummary: scrubMoney(r.summary), rankedAt: new Date() } });
+    ranked++;
+  }
+  return { ranked };
+}

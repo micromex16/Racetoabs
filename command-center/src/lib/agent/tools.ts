@@ -28,7 +28,7 @@ type ToolDef<S extends z.ZodTypeAny> = {
   /** Mutating tools refresh the UI after the turn */
   writes?: boolean;
 };
-function tool<S extends z.ZodTypeAny>(d: ToolDef<S>) {
+export function tool<S extends z.ZodTypeAny>(d: ToolDef<S>) {
   return d;
 }
 
@@ -184,13 +184,13 @@ export const INTERNAL_TOOLS = [
     name: "create_task",
     description:
       "Create a task. DRIFT RULE: every task must serve a rock or goal — pass goal_id (a weekly rock, quarterly rock or annual goal id). If nothing fits, do NOT create a task: use park_item instead, or ask the user which rock it serves.",
-    schema: z.object({ title: z.string(), goal_id: z.string(), due: dateish.optional(), notes: z.string().optional() }),
+    schema: z.object({ title: z.string(), goal_id: z.string(), due: dateish.optional(), notes: z.string().optional(), thread_id: z.string().optional().describe("Link the task to a conversation") }),
     writes: true,
     label: (i) => `Added task “${i.title}”`,
     run: async (i, ctx) => {
       const g = await db.goal.findUnique({ where: { id: i.goal_id } });
       if (!g) throw new Error("goal_id not found — call list_goals, or park the item instead.");
-      return tasks.createTask({ title: i.title, goalId: i.goal_id, dueDate: resolve(i.due, ctx), notes: i.notes, source: "agent" });
+      return tasks.createTask({ title: i.title, goalId: i.goal_id, dueDate: resolve(i.due, ctx), notes: i.notes, threadId: i.thread_id ?? null, source: i.thread_id ? "comms" : "agent" });
     },
   }),
   tool({

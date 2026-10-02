@@ -5,6 +5,7 @@ import { gmailAdapter } from "./gmail";
 import { slackAdapter } from "./slack";
 import { whatsappAdapter } from "./whatsapp";
 import { markError } from "./store";
+import { heuristicRank } from "../services/comms";
 
 // Pluggable adapters. Add a new channel by implementing CommsAdapter and listing it here.
 export const ADAPTERS: CommsAdapter[] = [gmailAdapter, slackAdapter, whatsappAdapter];
@@ -43,6 +44,7 @@ export async function syncDue(now = new Date()) {
       out[r.provider] = { error: (e as Error).message };
     }
   }
+  if (Object.keys(out).length) await heuristicRank().catch(() => {});
   return out;
 }
 

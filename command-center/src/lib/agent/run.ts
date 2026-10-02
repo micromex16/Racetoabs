@@ -3,6 +3,7 @@ import { db } from "../db";
 import { anthropic, AGENT_MODEL, FALLBACK_BETA } from "./client";
 import { STATIC_PROMPT, liveContext } from "./prompt";
 import { INTERNAL_TOOLS, toAnthropicTools, toolContext, type AnyTool } from "./tools";
+import { COMMS_TOOLS } from "./comms-tools";
 import { scrubMoney } from "../guard";
 
 export type AgentEvent =
@@ -16,14 +17,8 @@ export type AgentEvent =
 const MAX_STEPS = 16;
 const MAX_RESULT_CHARS = 40_000;
 
-let extraTools: AnyTool[] = [];
-/** Comms adapters add their tools here (draft_reply, summarize_thread, …). */
-export function registerAgentTools(list: AnyTool[]) {
-  const names = new Set(list.map((t) => t.name));
-  extraTools = [...extraTools.filter((t) => !names.has(t.name)), ...list];
-}
 export function allTools(): AnyTool[] {
-  return [...INTERNAL_TOOLS, ...extraTools] as AnyTool[];
+  return [...INTERNAL_TOOLS, ...COMMS_TOOLS] as AnyTool[];
 }
 
 type ToolLog = { name: string; label: string; ok: boolean; error?: string };

@@ -4,6 +4,8 @@ import { localMinutes, parseHHMM, todayKey, weekday, dateToKey, keyToDate } from
 import { getToday } from "./daily";
 import { sendOnce } from "../push";
 import { agentRepick } from "../agent/picks";
+import { rankInbox } from "../agent/comms";
+import { agentConfigured } from "../agent/client";
 
 const WINDOW = 90; // minutes after the scheduled time we still send (covers missed ticks)
 
@@ -50,6 +52,14 @@ export async function runScheduledNotifications(now = new Date()) {
   const out: Record<string, unknown> = {};
 
   const morning = parseHHMM(s.morningTime);
+  // Rank the inbox ~30 min before the card so "3 threads" are the right three.
+  if (workday && mins >= morning - 30 && mins < morning + WINDOW && agentConfigured()) {
+    const ranked = await db.notificationLog.findUnique({ where: { key: `rank:${today}` } });
+    if (!ranked) {
+      await db.notificationLog.create({ data: { key: `rank:${today}` } });
+      out.rank = await rankInbox().catch((e) => ({ error: (e as Error).message }));
+    }
+  }
   // Let the agent pick the day ~15 min before the card (falls back to heuristic picks).
   if (workday && mins >= morning - 15 && mins < morning + WINDOW) {
     const plan = await db.dailyPlan.findUnique({ where: { date: today } });

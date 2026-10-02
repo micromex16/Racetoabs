@@ -248,7 +248,7 @@ const CH = {
 };
 
 export function InboxPulse({ today }: { today: Today }) {
-  const { counts, top, connected } = today.inbox;
+  const { counts, top, connected, pendingDrafts } = today.inbox;
   return (
     <section>
       <SectionTitle right={<Link href="/comms" className="text-xs text-muted hover:text-fg">Comms →</Link>}>Inbox pulse</SectionTitle>
@@ -265,6 +265,11 @@ export function InboxPulse({ today }: { today: Today }) {
             );
           })}
         </div>
+        {pendingDrafts > 0 && (
+          <Link href="/comms" className="mt-2 flex items-center justify-between rounded-xl border border-warn/30 bg-warn/10 px-3 py-2 text-xs font-medium text-warn">
+            {pendingDrafts} draft{pendingDrafts > 1 ? "s" : ""} waiting for your approval <ArrowRight className="size-3.5" />
+          </Link>
+        )}
         {top.length === 0 ? (
           <p className="px-1 pb-1 pt-3 text-xs text-muted">
             {connected.length ? "Inbox is quiet. Nothing ranked important right now." : (

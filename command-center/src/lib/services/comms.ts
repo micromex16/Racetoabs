@@ -14,7 +14,8 @@ export async function inboxPulse() {
     select: { id: true, channel: true, subject: true, snippet: true, aiSummary: true, aiRank: true, aiRankReason: true, lastMessageAt: true, participants: true, unread: true },
   });
   const integrations = await db.integration.findMany({ select: { provider: true, status: true } });
-  return { counts, top, connected: integrations.filter((i) => i.status === "connected").map((i) => i.provider) };
+  const pendingDrafts = await db.draft.count({ where: { status: { in: ["PENDING", "FAILED"] } } });
+  return { counts, top, pendingDrafts, connected: integrations.filter((i) => i.status === "connected").map((i) => i.provider) };
 }
 
 const threadSelect = {

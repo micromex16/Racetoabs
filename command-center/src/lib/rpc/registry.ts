@@ -18,7 +18,7 @@ import { getSettings, updateSettings } from "../settings";
 import { conversationView, listConversations } from "../agent/run";
 import { agentRepick } from "../agent/picks";
 import { agentConfigured } from "../agent/client";
-import { summarizeThread, draftReply } from "../agent/comms";
+import { summarizeThread, draftReply, rankInbox } from "../agent/comms";
 import { db } from "../db";
 import { todayKey } from "../time";
 
@@ -209,6 +209,7 @@ export const mutations = {
   "thread.archive": def(id.extend({ archived: z.boolean().optional() }), (i) => comms.archiveThread(i.id, i.archived ?? true)),
   "thread.reply": def(id.extend({ body: z.string().min(1) }), (i) => comms.replyNow(i.id, i.body)),
   "thread.react": def(id.extend({ emoji: z.string().optional() }), (i) => slackReact(i.id, i.emoji)),
+  "inbox.rank": def(z.object({}), async () => (agentConfigured() ? rankInbox() : (await comms.heuristicRank(), { ranked: 0 }))),
   "thread.summarize": def(id, (i) => summarizeThread(i.id)),
   "thread.agentDraft": def(id.extend({ instructions: z.string().optional() }), (i) => draftReply(i.id, i.instructions)),
   "draft.create": def(
