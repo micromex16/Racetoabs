@@ -49,6 +49,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     setThemeState(getTheme());
+    // PWA shortcut: /?capture=1 opens voice capture
+    if (new URLSearchParams(window.location.search).get("capture") === "1") {
+      ui.openCapture({ voice: true });
+      window.history.replaceState(null, "", "/");
+    }
     try {
       if (localStorage.getItem("cc.agent") === "1" && window.innerWidth >= 1280) ui.set({ agent: true });
     } catch {}
@@ -57,6 +62,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Morning Launch: first open each day.
   React.useEffect(() => {
     if (!today?.needsLaunch) return;
+    // Never stack the launch flow on top of another open sheet (e.g. the 4:30 close-the-day deep link).
+    if (ui.get().closeDay || document.querySelector("[role=dialog]")) return;
     const key = `cc.launch.skipped.${today.today}`;
     try {
       if (sessionStorage.getItem(key)) return;

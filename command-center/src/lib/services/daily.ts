@@ -272,7 +272,12 @@ export async function closeDay(input: { actions: CloseAction[] }) {
   for (const a of input.actions) {
     if (a.kind === "task") {
       if (a.action === "done") await db.task.update({ where: { id: a.refId }, data: { status: "DONE", doneAt: new Date() } });
-      if (a.action === "carry") await db.task.update({ where: { id: a.refId }, data: { dueDate: keyToDate(tomorrow) } });
+      if (a.action === "carry") {
+        const t = await db.task.findUnique({ where: { id: a.refId } });
+        // A weekly recurring instance doesn't carry into next week — next week has its own.
+        if (t?.recurringId && weekStartKey(tomorrow) !== weekStartKey(today)) await db.task.update({ where: { id: a.refId }, data: { status: "CANCELLED" } });
+        else await db.task.update({ where: { id: a.refId }, data: { dueDate: keyToDate(tomorrow) } });
+      }
       if (a.action === "park") await parkTask(a.refId);
     } else if (a.kind === "followup") {
       if (a.action === "done") await db.followUp.update({ where: { id: a.refId }, data: { status: "DONE", doneAt: new Date() } });

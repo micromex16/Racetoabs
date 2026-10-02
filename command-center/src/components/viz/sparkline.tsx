@@ -5,6 +5,23 @@ import { cn } from "@/lib/utils";
 type Pt = { label?: string; value: number | null };
 
 /** Sparkline with gradient area, last-point dot, optional target line and a hover readout. */
+/** Fills its container's width. */
+export function FluidSparkline(props: Omit<Parameters<typeof Sparkline>[0], "width">) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [w, setW] = React.useState(0);
+  React.useEffect(() => {
+    if (!ref.current) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.floor(e.contentRect.width)));
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className="w-full">
+      {w > 0 && <Sparkline {...props} width={w} />}
+    </div>
+  );
+}
+
 export function Sparkline({
   data,
   width = 120,

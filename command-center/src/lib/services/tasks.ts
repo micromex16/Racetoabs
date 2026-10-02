@@ -17,11 +17,12 @@ const taskInclude = {
   owner: { select: { id: true, name: true } },
 } as const;
 
-export async function listTasks(filter: { status?: "OPEN" | "DONE" | "ALL"; goalId?: string; q?: string; limit?: number } = {}) {
+export async function listTasks(filter: { status?: "OPEN" | "DONE" | "ALL"; goalId?: string; q?: string; delegated?: boolean; limit?: number } = {}) {
   return db.task.findMany({
     where: {
       ...(filter.status && filter.status !== "ALL" ? { status: filter.status } : filter.status === "ALL" ? {} : { status: "OPEN" }),
       ...(filter.goalId ? { goalId: filter.goalId } : {}),
+      ...(filter.delegated ? { ownerId: { not: null } } : {}),
       ...(filter.q ? { title: { contains: filter.q, mode: "insensitive" as const } } : {}),
     },
     include: taskInclude,
